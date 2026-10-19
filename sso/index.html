@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>IdentityForge | Entra SSO workbench</title></head>
+<body>
+<main>
+  <header><a href="#">IdentityForge</a><span>Entra SSO workbench</span></header>
+  <section class="intro"><h1>Trace a real sign-in.<br>Find the broken mapping.</h1><p>Connect your isolated Microsoft Entra lab tenant, establish a baseline, then test an application claim failure and recovery.</p></section>
+  <section class="workbench" aria-labelledby="session-title">
+    <div><h2 id="session-title">Your session</h2><p id="status" role="status" aria-live="polite">Checking local configuration...</p>
+    <div class="actions"><button id="login" disabled>Sign in with Entra ID</button><button id="logout" class="secondary" disabled>Sign out</button></div>
+    <p id="help">No simulated sign-in is provided. A lab tenant and registered application are required.</p></div>
+    <div class="exercise"><h2>Mapping exercise</h2><label for="mode">Application claim contract</label><select id="mode"><option value="healthy">Healthy: tenant + object identity</option><option value="broken">Broken: require legacy employee claim</option></select><button id="recheck" class="secondary" disabled>Recheck current session</button><p>A missing application claim stops here. The app never automatically sends you back into a login loop.</p></div>
+  </section>
+  <section><h2>Evidence trail</h2><p>Only event names, timestamps and fixed result codes appear here. Tokens, user names and tenant identifiers are excluded from the export.</p><ol id="events" aria-live="polite"></ol><button id="export" class="secondary">Download event evidence</button></section>
+  <aside><strong>Scope:</strong> browser sign-in demonstration, not a protected business API. Authentication uses MSAL; the mapping exercise does not replace signature validation or server-side authorization. No cloud policy changes or directory synchronization are performed.</aside>
+  <footer>Start with README.md in the sso folder. Use only an isolated lab tenant.</footer>
+</main><script type="module" src="/main.mjs"></script>
+</body></html>

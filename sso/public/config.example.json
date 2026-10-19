@@ -1,0 +1,5 @@
+{
+  "tenantId": "REPLACE-WITH-LAB-TENANT-GUID",
+  "clientId": "REPLACE-WITH-APPLICATION-CLIENT-GUID",
+  "redirectUri": "http://localhost:5173/"
+}

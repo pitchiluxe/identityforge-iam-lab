@@ -1,0 +1,12 @@
+workspace/
+evidence/
+tmp/
+output/portfolio-bundles/
+node_modules/
+sso/dist/
+sso/config.local.json
+sso/public/config.local.json
+*.local
+*.log
+publication/
+.publication/

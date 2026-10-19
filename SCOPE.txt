@@ -1,0 +1,1 @@
+﻿Source bundle only. No live AD or SSO verification is implied. Review contents before sharing.

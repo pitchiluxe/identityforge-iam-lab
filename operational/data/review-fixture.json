@@ -1,0 +1,4 @@
+[
+  {"EmployeeID":"LAB-002","Enabled":true,"Groups":["LAB-AllEmployees","LAB-Finance-Read","LAB-Payment-Creator","LAB-Payment-Approver"]},
+  {"EmployeeID":"LAB-003","Enabled":true,"Groups":["LAB-AllEmployees","LAB-Engineering-Tools"]}
+]

@@ -1,0 +1,3 @@
+EmployeeID,SamAccountName,GivenName,Surname,DepartmentCode,EmploymentStatus
+LAB-001,lab-alex,Alex,Morgan,ENG,Active
+LAB-004,lab-casey,Casey,Patel,UNKNOWN,Active

@@ -1,0 +1,6 @@
+{
+  "HighRisk": "Allow",
+  "Unmanaged": "Allow",
+  "CorporateManaged": "Allow",
+  "RemoteManaged": "Allow"
+}
