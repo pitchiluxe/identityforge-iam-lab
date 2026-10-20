@@ -178,7 +178,8 @@ function createWindow() {
         fs.writeFileSync(path.join(dir, 'smoke.png'), image.toPNG());
         const probe = await mainWindow.webContents.executeJavaScript("fetch('/ollama/api/tags').then(r => r.status).catch(e => String(e))");
         const title = await mainWindow.webContents.executeJavaScript('document.title');
-        fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify({ version: app.getVersion(), title, ollamaStatus: probe, update: status() }, null, 2));
+        const checked = await mainWindow.webContents.executeJavaScript('window.meridianDesktop ? window.meridianDesktop.checkForUpdates() : null');
+        fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify({ version: app.getVersion(), title, ollamaStatus: probe, updateCheck: checked }, null, 2));
       } finally {
         app.quit();
       }
