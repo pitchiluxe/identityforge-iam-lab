@@ -14,7 +14,7 @@
 // The renderer stays sandboxed with no Node access. Everything it needs
 // crosses preload.cjs as a named channel.
 
-const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, net, protocol, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, desktopCapturer, dialog, ipcMain, net, protocol, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -35,6 +35,7 @@ const OLLAMA = 'http://127.0.0.1:11434';
 const SCHEME = 'app';
 const HOST = 'range';
 const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const REPO_URL = 'https://github.com/pitchiluxe/identityforge-iam-lab';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
@@ -204,6 +205,130 @@ function installMediaPermissions(session) {
 ipcMain.on('env:sync', (event) => { event.returnValue = { desktop: true, version: app.getVersion(), product: PRODUCT_NAME }; });
 
 // ---------------------------------------------------------------------------
+// Application menu: File, Edit, View, Window, Help
+// ---------------------------------------------------------------------------
+// Shortcuts the workstation itself uses (Ctrl+R in Word, Ctrl+= in the
+// Markdown viewer, Ctrl+W in Chrome, Ctrl+Z in Excel) are shown in the menu but
+// not registered, so the key still reaches the app inside the window. Only keys
+// the lab never uses (F11, Ctrl+Shift+I) are registered here.
+
+const shown = (accelerator) => ({ accelerator, registerAccelerator: false });
+const capturesDir = () => path.join(app.getPath('documents'), PRODUCT_NAME, 'Captures');
+
+async function menuCheckForUpdates() {
+  if (!mainWindow) return;
+  if (!autoUpdater || !app.isPackaged) {
+    await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Check for Updates', message: 'Updates are available in the installed app.', detail: `This copy (${app.getVersion()}) is running from source.` });
+    return;
+  }
+  try { await autoUpdater.checkForUpdates(); } catch (err) { updateState = 'error'; updateError = String(err && err.message ? err.message : err); }
+  const s = status();
+  if (s.state === 'downloaded') {
+    const { response } = await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Update ready', message: `Version ${s.info && s.info.version} is ready to install.`, detail: 'Restart now to finish, or it installs the next time you close the app.', buttons: ['Restart now', 'Later'], defaultId: 0, cancelId: 1 });
+    if (response === 0) setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  } else if (s.state === 'available' || s.state === 'downloading') {
+    await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Update available', message: `Version ${s.info && s.info.version} is downloading.`, detail: 'It installs when you close the app. Settings > Windows Update shows the progress.' });
+  } else if (s.state === 'error') {
+    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'Check for Updates', message: 'The update check failed.', detail: s.error || 'Unknown error' });
+  } else {
+    await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Check for Updates', message: "You're up to date.", detail: `${PRODUCT_NAME} ${app.getVersion()} is the latest version.` });
+  }
+}
+
+function showShortcuts() {
+  dialog.showMessageBox(mainWindow, {
+    type: 'none', title: 'Keyboard Shortcuts', message: 'Keyboard shortcuts',
+    detail: [
+      'App window',
+      '  F11  Full screen on or off',
+      '  Ctrl+Shift+I  Developer tools',
+      '',
+      'Workstation',
+      '  Win  Start menu',
+      '  Win+E  File Explorer        Win+R  Run',
+      '  Win+I  Settings             Win+L  Lock',
+      '  Win+X  Quick link menu      Alt+C  IAM Copilot',
+      '  Win+Shift+D  Screen Pen (Esc returns the desktop)',
+      '',
+      'Office',
+      '  Ctrl+S  Save   F12  Save As   Ctrl+O  Open',
+      '  Excel: Alt+=  AutoSum, F2  edit cell',
+      '  PowerPoint: F5  Slide Show, Ctrl+M  new slide',
+    ].join('\n'),
+  });
+}
+
+function showAbout() {
+  dialog.showMessageBox(mainWindow, {
+    type: 'info', title: `About ${PRODUCT_NAME}`, message: `${PRODUCT_NAME} ${app.getVersion()}`,
+    detail: `${WINDOW_TITLE}\n\nA practice workstation for identity and access management. Every company, person and account in it is fictional.\n\nElectron ${process.versions.electron}, Chromium ${process.versions.chrome}, Node ${process.versions.node}\n\n${REPO_URL}`,
+    buttons: ['OK', 'Open on GitHub'], defaultId: 0, cancelId: 0,
+  }).then(({ response }) => { if (response === 1) shell.openExternal(REPO_URL); });
+}
+
+function buildMenu() {
+  const win = () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const template = [
+    { label: '&File', submenu: [
+      { label: 'Open Captures Folder', click: async () => { const dir = capturesDir(); await fs.promises.mkdir(dir, { recursive: true }); shell.openPath(dir); } },
+      { label: 'Check for Updates...', click: menuCheckForUpdates },
+      { type: 'separator' },
+      { label: 'Restart', click: () => { app.relaunch(); app.exit(0); } },
+      { label: 'Exit', role: 'quit', ...shown('Alt+F4') },
+    ] },
+    { label: '&Edit', submenu: [
+      { role: 'undo', ...shown('CmdOrCtrl+Z') },
+      { role: 'redo', ...shown('CmdOrCtrl+Y') },
+      { type: 'separator' },
+      { role: 'cut', ...shown('CmdOrCtrl+X') },
+      { role: 'copy', ...shown('CmdOrCtrl+C') },
+      { role: 'paste', ...shown('CmdOrCtrl+V') },
+      { role: 'pasteAndMatchStyle', label: 'Paste as Plain Text', ...shown('CmdOrCtrl+Shift+V') },
+      { role: 'delete' },
+      { type: 'separator' },
+      { role: 'selectAll', ...shown('CmdOrCtrl+A') },
+    ] },
+    { label: '&View', submenu: [
+      { label: 'Reload', click: () => win() && win().webContents.reload() },
+      { label: 'Force Reload', click: () => win() && win().webContents.reloadIgnoringCache() },
+      { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Shift+I', click: () => win() && win().webContents.toggleDevTools() },
+      { type: 'separator' },
+      { label: 'Actual Size', accelerator: 'CmdOrCtrl+Shift+0', click: () => win() && win().webContents.setZoomLevel(0) },
+      { label: 'Zoom In', accelerator: 'CmdOrCtrl+Shift+=', click: () => { const w = win(); if (w) w.webContents.setZoomLevel(Math.min(4, w.webContents.getZoomLevel() + 0.5)); } },
+      { label: 'Zoom Out', accelerator: 'CmdOrCtrl+Shift+-', click: () => { const w = win(); if (w) w.webContents.setZoomLevel(Math.max(-3, w.webContents.getZoomLevel() - 0.5)); } },
+      { type: 'separator' },
+      { label: 'Toggle Full Screen', accelerator: 'F11', click: () => { const w = win(); if (w) w.setFullScreen(!w.isFullScreen()); } },
+    ] },
+    { label: '&Window', submenu: [
+      { role: 'minimize' },
+      { label: 'Maximize / Restore', click: () => { const w = win(); if (w) { if (w.isMaximized()) w.unmaximize(); else w.maximize(); } } },
+      { label: 'Always on Top', type: 'checkbox', checked: false, click: (item) => win() && win().setAlwaysOnTop(item.checked) },
+      { type: 'separator' },
+      { label: 'Reset Window Size', click: () => {
+        const w = win(); if (!w) return;
+        if (w.isFullScreen()) w.setFullScreen(false);
+        if (w.isMaximized()) w.unmaximize();
+        const area = screen.getPrimaryDisplay().workAreaSize;
+        w.setSize(Math.min(1366, Math.round(area.width * 0.82)), Math.min(860, Math.round(area.height * 0.85)));
+        w.center();
+      } },
+      { type: 'separator' },
+      { role: 'close', ...shown('Alt+F4') },
+    ] },
+    { label: '&Help', submenu: [
+      { label: 'Keyboard Shortcuts', click: showShortcuts },
+      { label: 'Release Notes', click: () => shell.openExternal(`${REPO_URL}/releases/latest`) },
+      { label: 'Project on GitHub', click: () => shell.openExternal(REPO_URL) },
+      { label: 'Report an Issue', click: () => shell.openExternal(`${REPO_URL}/issues/new`) },
+      { type: 'separator' },
+      { label: 'Check for Updates...', click: menuCheckForUpdates },
+      { label: `About ${PRODUCT_NAME}`, click: showAbout },
+    ] },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ---------------------------------------------------------------------------
 // Window
 // ---------------------------------------------------------------------------
 
@@ -242,12 +367,14 @@ function createWindow() {
     minHeight: 640,
     title: WINDOW_TITLE,
     backgroundColor: '#0b1a2c',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     show: false,
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, webviewTag: true },
   });
-  mainWindow.setMenuBarVisibility(false);
+  // The menu bar is part of the window, as in IAM Range; full screen hides it (F11 brings it back).
+  mainWindow.on('enter-full-screen', () => mainWindow.setMenuBarVisibility(false));
+  mainWindow.on('leave-full-screen', () => mainWindow.setMenuBarVisibility(true));
   installMediaPermissions(mainWindow.webContents.session);
   mainWindow.once('ready-to-show', () => { if (bounds.maximized) mainWindow.maximize(); mainWindow.show(); });
   mainWindow.on('close', saveBounds);
@@ -276,7 +403,8 @@ function createWindow() {
         const probe = await mainWindow.webContents.executeJavaScript("fetch('/ollama/api/tags').then(r => r.status).catch(e => String(e))");
         const title = await mainWindow.webContents.executeJavaScript('document.title');
         const checked = await mainWindow.webContents.executeJavaScript('window.meridianDesktop ? window.meridianDesktop.checkForUpdates() : null');
-        fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify({ version: app.getVersion(), title, ollamaStatus: probe, updateCheck: checked }, null, 2));
+        const menu = (Menu.getApplicationMenu()?.items ?? []).map((i) => i.label.replace('&', ''));
+        fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify({ version: app.getVersion(), title, ollamaStatus: probe, updateCheck: checked, menu }, null, 2));
       } finally {
         app.quit();
       }
@@ -312,6 +440,7 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   app.setAppUserModelId('com.mydigitalsolutions.meridianiamrange');
   protocol.handle(SCHEME, handle);
+  buildMenu();
   createWindow();
   setupUpdater();
 });

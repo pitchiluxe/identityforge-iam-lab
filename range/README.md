@@ -10,6 +10,8 @@ Download `Meridian-IAM-Range-Setup-<version>.exe` from [Releases](https://github
 
 Sign in as **Admin** with the password shown on the sign-in screen: `Meridian!2026`.
 
+The desktop app has a menu bar, as IAM Range does: **File** (Open Captures Folder, Check for Updates, Restart, Exit), **Edit** (Undo, Redo, Cut, Copy, Paste, Paste as Plain Text, Select All), **View** (Reload, Zoom, Toggle Full Screen **F11**, Developer Tools), **Window** (Minimize, Maximize, Always on Top, Reset Window Size, Close) and **Help** (Keyboard Shortcuts, Release Notes, GitHub, Report an Issue, About). Full screen hides the menu bar so the workstation fills the monitor; F11 brings it back. Shortcuts the workstation uses itself (Ctrl+R, Ctrl+W, Ctrl+=) still go to the app inside the window.
+
 The installed app updates itself: it checks GitHub Releases when it starts and every six hours, downloads new versions in the background, and installs them on restart. Settings > Windows Update shows the version and status. Your world, settings and career record are kept.
 
 ## Use it in the browser
