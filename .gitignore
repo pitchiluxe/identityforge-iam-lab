@@ -10,3 +10,6 @@ sso/public/config.local.json
 *.log
 publication/
 .publication/
+range/node_modules/
+range/dist/
+.playwright-mcp/

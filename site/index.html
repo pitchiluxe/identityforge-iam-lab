@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meridian IAM Range: practise hospital identity and access management</title>
+  <meta name="description" content="A free Windows workstation simulator for practising healthcare IAM: Active Directory, PowerShell, Entra ID, Okta and a ServiceDesk queue of joiners, leavers, lockouts and traps, graded after every change." />
+  <meta name="theme-color" content="#0b2236" />
+  <meta property="og:title" content="Meridian IAM Range" />
+  <meta property="og:description" content="Practise hospital identity and access management on a workstation that behaves like the real one." />
+  <meta property="og:image" content="/assets/workstation.webp" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top" id="top">
+    <a class="brand" href="#top" aria-label="Meridian IAM Range, home">
+      <img src="/favicon.svg" alt="" width="30" height="30" />
+      <span>Meridian IAM Range</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#desk">The desk</a>
+      <a href="#shift">A shift</a>
+      <a href="#labs">Labs</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/pitchiluxe/identityforge-iam-lab">GitHub</a>
+    </nav>
+    <a class="btn btn-small js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">Download</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>Practise hospital IAM on a workstation that behaves like the real one.</h1>
+        <p class="lede">Meridian IAM Range puts you at the IAM Operations desk of a fictional health system. Active Directory, PowerShell, Entra ID, Okta and a ServiceDesk queue full of joiners, leavers, lockouts and the occasional trap. Every change you make is graded the moment you make it.</p>
+        <div class="cta">
+          <a class="btn btn-primary js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">
+            <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18"><path d="M2 3.6 8.4 2.7v6.2H2zm7.2-1 8.8-1.2v7.5H9.2zM2 9.7h6.4v6.2L2 15zm7.2 0H18v7.5l-8.8-1.2z" fill="currentColor"/></svg>
+            Download for Windows
+          </a>
+          <a class="btn btn-quiet" href="https://github.com/pitchiluxe/identityforge-iam-lab">View the source</a>
+        </div>
+        <p class="fine" id="release-line">Windows 10 and 11, 64-bit. Free and open source. Updates itself.</p>
+      </div>
+
+      <figure class="graph" aria-label="Animation: a nurse's account is provisioned with birthright access, then removed when she leaves">
+        <div class="graph-status" aria-live="off"><span class="dot"></span><span id="phase">Joiner: provisioned from PeopleHub</span></div>
+        <svg viewBox="0 0 520 380" role="img" aria-hidden="true">
+          <g class="edges">
+            <path id="e1" d="M260 190 L96 72" />
+            <path id="e2" d="M260 190 L424 64" />
+            <path id="e3" d="M260 190 L470 214" />
+            <path id="e4" d="M260 190 L392 336" />
+            <path id="e5" d="M260 190 L118 322" />
+            <path id="e6" d="M260 190 L52 196" />
+          </g>
+          <g class="res" data-edge="e1"><circle cx="96" cy="72" r="7" /><text x="96" y="52">role-nursing-rn</text></g>
+          <g class="res" data-edge="e2"><circle cx="424" cy="64" r="7" /><text x="424" y="44">CareChart EHR</text></g>
+          <g class="res" data-edge="e3"><circle cx="470" cy="214" r="7" /><text x="470" y="244">grp-nursing-clinical</text></g>
+          <g class="res" data-edge="e4"><circle cx="392" cy="336" r="7" /><text x="392" y="366">grp-all-staff</text></g>
+          <g class="res" data-edge="e5"><circle cx="118" cy="322" r="7" /><text x="118" y="352">ExpenseFlow</text></g>
+          <g class="res" data-edge="e6"><circle cx="52" cy="196" r="7" /><text x="52" y="226">grp-vpn-users</text></g>
+          <g class="who">
+            <circle class="ring" cx="260" cy="190" r="44" />
+            <circle class="core" cx="260" cy="190" r="34" />
+            <text class="initials" x="260" y="198">NO</text>
+          </g>
+          <rect class="plate" x="168" y="238" width="184" height="46" rx="10" />
+          <text class="who-label" x="260" y="258">Nia Owusu</text>
+          <text class="who-sub" x="260" y="276">Registered Nurse, Nursing</text>
+        </svg>
+        <ol class="log" id="log" aria-hidden="true"></ol>
+      </figure>
+    </section>
+
+    <section class="shot" aria-label="The workstation">
+      <figure class="frame">
+        <img src="/assets/workstation.webp" width="1440" height="900" alt="The Meridian IAM Range desktop: Active Directory Users and Computers open on the Nursing OU, with IAM Copilot tracking three running labs." />
+      </figure>
+      <p class="caption">Active Directory Users and Computers on the Nursing OU, with IAM Copilot following three labs from a 3-ticket shift.</p>
+    </section>
+
+    <section class="block" id="desk">
+      <div class="block-head">
+        <h2>Everything on the desk is a tool you will use in the job</h2>
+        <p>Every console reads and writes the same directory, so a change in PowerShell shows up in ADUC, syncs to Entra ID on schedule, and is visible in the audit log.</p>
+      </div>
+      <dl class="tools">
+        <div><dt>Active Directory Users and Computers</dt><dd>OU tree, Find, Saved Queries, the New User wizard, Properties with Account, Member Of and the Attribute Editor, Delegate Control.</dd></div>
+        <div><dt>Windows PowerShell and the ISE</dt><dd>ActiveDirectory, ADSync and Microsoft Graph cmdlets with pipelines, functions, <code>param()</code> and <code>try/catch</code>. Save a <code>.ps1</code> and double-click it to run.</dd></div>
+        <div><dt>Google Chrome with the admin portals</dt><dd>Entra admin center, Okta admin console, ServiceDesk, PeopleHub (the HR source of truth), Outlook on the web, and the policy wiki.</dd></div>
+        <div><dt>Event Viewer</dt><dd>The domain controller's Security log: 4740 lockouts with the caller computer, 4771 Kerberos failures, account and group changes.</dd></div>
+        <div><dt>File Explorer and Notepad</dt><dd>HIPAA access control policy, JML procedures, the birthright matrix, SoD rules, audit exports, and your own evidence.</dd></div>
+        <div><dt>IAM Copilot</dt><dd>A senior engineer on call. It watches every running lab, speaks up when a change breaks a critical control, and answers through a local Ollama model.</dd></div>
+      </dl>
+    </section>
+
+    <section class="block shift" id="shift">
+      <div class="block-head">
+        <h2>A shift on the IAM desk</h2>
+        <p>Labs arrive the way work does: as tickets, emails and alerts. Nothing tells you which ones are traps.</p>
+      </div>
+      <div class="shift-grid">
+        <ol class="steps">
+          <li class="step"><h3>A ticket lands in your queue</h3><p>A charge nurse starts Monday, a radiographer transfers, a contractor's end date passed last week. Some requests are urgent. Some are not what they say they are.</p></li>
+          <li class="step"><h3>You check it against the source of truth</h3><p>PeopleHub says who works here, in which role, for whom. The access policy says what that role gets. "Copy her colleague's access" is not a justification under minimum necessary.</p></li>
+          <li class="step"><h3>You make the change</h3><p>In ADUC, in PowerShell, in the Entra admin center or the Okta console, whichever the job calls for. Disable before you remove. Revoke sessions when someone is walked out.</p></li>
+          <li class="step"><h3>The lab grades what actually happened</h3><p>Checks read the directory, the cloud tenants and the ticket, not your intentions. Fall for a trap and Copilot tells you which control just broke.</p></li>
+        </ol>
+        <figure class="frame frame-tilt">
+          <img src="/assets/chrome.webp" width="1440" height="900" loading="lazy" alt="Google Chrome inside the workstation showing the ServiceDesk queue for IAM Operations." />
+        </figure>
+      </div>
+    </section>
+
+    <section class="block" id="labs">
+      <div class="block-head">
+        <h2>17 kinds of lab, 35 variations, 11 of them traps</h2>
+        <p>Each run draws new people, departments and evidence, so you cannot memorise the answer. Variations marked <span class="trap-key">in amber</span> are designed so that the obvious action is the wrong one.</p>
+      </div>
+      <div class="labs">
+        <div class="lab-group"><h3>Lifecycle</h3><ul>
+          <li>New hire starting next week</li><li>New hire starting today</li><li class="trap">"Copy a colleague's access"</li><li class="trap">Someone HR has never heard of</li>
+          <li>Internal transfer</li><li>Transfer with an approved exception</li><li>Leftover access from an earlier job</li>
+          <li>Voluntary leaver</li><li>Involuntary termination with live sessions</li><li>Finance leaver with a manual payroll account</li></ul></div>
+        <div class="lab-group"><h3>Authentication</h3><ul>
+          <li>Verified password reset</li><li class="trap">Caller whose details do not match</li><li>Lockout from a stale device</li><li class="trap">Many users locked out from one address</li>
+          <li>MFA reset for a new phone</li><li class="trap">MFA reset from a personal email</li><li>MFA fatigue</li><li>Impossible travel</li></ul></div>
+        <div class="lab-group"><h3>Access and governance</h3><ul>
+          <li>Fully approved access request</li><li class="trap">Manager approved, owner has not</li><li class="trap">Approved, but a toxic combination</li>
+          <li>Quarterly access review</li><li>Stale account cleanup</li><li>Orphaned accounts audit finding</li><li class="trap">SSO group membership lost</li><li>Direct app assignments found by audit</li></ul></div>
+        <div class="lab-group"><h3>Privilege and hybrid</h3><ul>
+          <li class="trap">Executive impersonation from a look-alike domain</li><li class="trap">Request for permanent Domain Admin</li><li>Permanent Global Administrator found</li><li class="trap">Service account in Domain Admins</li>
+          <li>Conditional Access rollout</li><li>New starter in an unsynced OU</li><li>Name change not reaching Teams</li><li>InvalidSoftMatch against a cloud admin</li></ul></div>
+      </div>
+    </section>
+
+    <section class="block copilot" aria-labelledby="copilot-h">
+      <div class="copilot-copy">
+        <h2 id="copilot-h">A mentor that watches the lab, not just the chat</h2>
+        <p>IAM Copilot re-checks every running lab after each change you make. If you disable the wrong nurse or add a service account to Domain Admins, it tells you straight away, the way a senior colleague looking over your shoulder would.</p>
+        <p>Chat runs on your own computer through <a href="https://ollama.com">Ollama</a> with llama3.2. It never decides whether you passed: the checks do. Without Ollama, the monitor still works and the chat falls back to what the checks say.</p>
+      </div>
+      <figure class="frame frame-small">
+        <img src="/assets/signin.webp" width="1440" height="900" loading="lazy" alt="The Meridian IAM Range sign-in screen with the built-in Admin account and its default password shown." />
+      </figure>
+    </section>
+
+    <section class="block install" id="install">
+      <div class="block-head">
+        <h2>Install in a couple of minutes</h2>
+        <p>Your world, settings and progress are saved on your computer and kept through updates.</p>
+      </div>
+      <ol class="install-steps">
+        <li><h3>Download the installer</h3><p><a class="js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">Meridian IAM Range Setup</a> for Windows 10 or 11, 64-bit. <span class="js-size"></span></p></li>
+        <li><h3>Run it</h3><p>The installer is not code-signed yet, so Windows SmartScreen may stop it. Choose <strong>More info</strong>, then <strong>Run anyway</strong>. You can install for your account only, without administrator rights.</p></li>
+        <li><h3>Sign in as Admin</h3><p>The default password is shown on the sign-in screen: <code>Meridian!2026</code>. Open IAM Coach on the desktop and start your first lab.</p></li>
+      </ol>
+      <div class="notes">
+        <p><strong>Automatic updates.</strong> The app checks for new releases when it starts and every six hours, downloads them in the background, and installs them when you restart. Settings &gt; Windows Update shows the current version and status.</p>
+        <p><strong>Optional AI.</strong> Install <a href="https://ollama.com/download">Ollama</a> and run <code>ollama pull llama3.2</code> to turn on Copilot chat, AI-designed labs and reworded tickets.</p>
+        <p><strong>Prefer the source?</strong> Clone the repository and run <code>npm ci</code> then <code>npm run dev</code> in <code>range/</code>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Meridian IAM Range is a training environment. Meridian Health System, its staff, patients, domains and applications are fictional. It does not connect to or change any real directory or tenant.</p>
+    <p>Created by Erick Omari. Released under the MIT licence. <a href="https://github.com/pitchiluxe/identityforge-iam-lab">Source and releases on GitHub</a>.</p>
+  </footer>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

@@ -8,6 +8,21 @@ PowerShell tooling, the local SSO client and self-paced guides are available. Li
 
 Learn identity. Build evidence. Tell your career story.
 
+## Meridian IAM Range: download and practise
+
+[**Download the Windows installer**](https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest) (Windows 10/11, 64-bit, free). The installed app updates itself from this repository's releases. Sign in as **Admin**; the default password `Meridian!2026` is shown on the sign-in screen. The installer is not code-signed yet, so SmartScreen may ask you to choose **More info**, then **Run anyway**.
+
+Meridian IAM Range is a simulated IAM Operations workstation at a fictional hospital system, Meridian Health System: Active Directory Users and Computers, PowerShell and the ISE, Chrome with Entra ID, Okta, ServiceDesk and HR portals, Event Viewer, and an IAM Copilot that watches every lab. Source: [range/](range/README.md). Landing page source: [site/](site/) (deployed with Vercel using [vercel.json](vercel.json)).
+
+## Practice path to an IAM job
+
+1. **Daily reps in Meridian IAM Range** (the installer above, `Start-Lab.cmd` option 9, or `range\Start-Range.ps1`). A simulated Meridian Health System workstation: tickets in ServiceDesk, HR in PeopleHub, ADUC, PowerShell, Entra and Okta admin consoles, SaaS apps, policies on disk. 17 scenario types and 35 variations, randomised every run, plus AI-designed labs if Ollama is running. Do one lab a day and a 5-ticket shift each weekend. See [range/README.md](range/README.md).
+2. **Prove it on real systems** with the AD lifecycle track (`advanced/lifecycle/README.md`) on an isolated Windows Server VM, and the Entra SSO client (`sso/README.md`) on a free lab tenant. The Range's "Real portals" bookmarks link to the sign-up pages.
+3. **Turn practice into evidence:** IAM Coach exports a Markdown evidence pack per lab; Career Tracker exports your coverage against IAM job descriptions. Label Range work as simulated, and live work as live.
+4. **Interview:** each Range lab ends with an interview question; Ollama scores your answer, or you compare it with the reference answer. `INTERVIEW.md` has more.
+
+The original standalone console (`Lab.ps1`, option 3) is the short warm-up; the Range is the main practice environment.
+
 ![IdentityForge learning roadmap](output/images/IdentityForge-Roadmap.png)
 
 ## Project milestones

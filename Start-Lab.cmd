@@ -18,6 +18,9 @@ echo    [1] Open the setup and step-by-step PDF handbook
 echo    [2] Open the roadmap and LinkedIn portfolio PDF
 echo.
 echo  PRACTICE
+echo    [9] Launch Meridian IAM Range (hospital IAM workstation, random tickets)
+echo        ADUC, PowerShell, Entra, Okta, ServiceDesk, HR, mail; optional Ollama
+echo.
 echo    [3] Launch the complete standalone simulation
 echo        IGA lifecycle / AM policy checks / PAM time-bound access
 echo.
@@ -36,8 +39,9 @@ echo    Progress is saved automatically. Reset is inside the simulation.
 echo    Simulation and actual AD exercises are separate learning tracks.
 echo  ----------------------------------------------------------------------
 echo.
-choice /c 12345678Q /n /m "  Choose an option [1-8 or Q]: "
-if errorlevel 9 goto done
+choice /c 123456789Q /n /m "  Choose an option [1-9 or Q]: "
+if errorlevel 10 goto done
+if errorlevel 9 goto range
 if errorlevel 8 goto bundle
 if errorlevel 7 goto sso
 if errorlevel 6 goto hiring
@@ -56,6 +60,9 @@ if exist "output\pdf\IdentityForge-Hiring-Asset-Upgrade.pdf" (
 ) else (
     start "" notepad.exe "%~dp0HIRING-ASSET-START-HERE.md"
 )
+goto home
+:range
+start "Meridian IAM Range" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0range\Start-Range.ps1"
 goto home
 :sso
 start "" notepad.exe "%~dp0sso\README.md"

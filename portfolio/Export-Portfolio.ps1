@@ -14,6 +14,19 @@ foreach($folder in @('advanced\lifecycle','operational')){
         if($f.Extension -in @('.ps1','.psm1','.md','.csv','.json')){$files+=$f.FullName.Substring($root.Length+1)}
     }
 }
+# IdentityForge Range: source only (no node_modules, no dist).
+$files+=@('range\README.md','range\package.json','range\package-lock.json','range\tsconfig.json','range\vite.config.mjs','range\index.html','range\Start-Range.ps1','range\LICENSE.txt','range\.gitignore','range\build-icons.cjs','range\build-installer-art.cjs','range\electron\main.cjs','range\electron\preload.cjs','vercel.json','CLAUDE.md')
+foreach($folder in @('range\src','range\tests','MyScripts')){
+    foreach($f in Get-ChildItem -LiteralPath (Join-Path $root $folder) -File -Recurse){
+        if($f.Extension -in @('.ts','.css','.ps1')){$files+=$f.FullName.Substring($root.Length+1)}
+    }
+}
+# Range static assets, installer artwork, and the landing page (deployed to Vercel from site\).
+foreach($folder in @('range\public','range\build','site')){
+    foreach($f in Get-ChildItem -LiteralPath (Join-Path $root $folder) -File -Recurse){
+        if($f.Extension -in @('.svg','.webp','.png','.ico','.bmp','.html','.css','.js','.txt')){$files+=$f.FullName.Substring($root.Length+1)}
+    }
+}
 $files+=@('.gitattributes','portfolio\LINKEDIN-ADVANCED.md')
 $files+=@('Lab.ps1','Start-Lab.cmd','WORKBOOK.md','ANSWER-KEY.md','INTERVIEW.md','LINKEDIN-TEMPLATES.md','advanced\README.md','portfolio\Export-Portfolio.ps1','output\images\IdentityForge-Roadmap.png')
 foreach($n in 1..8){$files+=('output\images\Milestone-{0:D2}-Image-Layout.png' -f $n)}
