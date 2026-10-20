@@ -24,6 +24,7 @@ export interface Settings {
   settingsV2?: boolean;
   system?: Partial<import('./system.ts').SystemSettings>;
   terminal?: Partial<import('./apps/terminal.ts').TerminalSettings>;
+  security?: import('./apps/security.ts').SecurityState;
   notepad?: Partial<import('./apps/tools.ts').NotepadPrefs>;
   /** Seed ids of generated wallpapers, oldest first (see ui/wallpaperGenerator.ts). */
   generatedWallpapers?: string[];

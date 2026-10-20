@@ -7,6 +7,7 @@ import { notepadApp, powershellWindow, explorerApp, eventViewerApp, setPowerShel
 import { iseApp } from './apps/ise.ts';
 import { batchWindow, terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
+import { securityApp } from './apps/security.ts';
 import { sys } from './system.ts';
 import { browserApp, chromeWindow } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
@@ -33,6 +34,7 @@ export function openProgram(name: string): void {
   if (n === 'wt' || n === 'terminal') return openApp(terminalApp, undefined, false);
   if (n === 'cmd' || n === 'cmd.exe') return openApp(terminalWindow({ profile: 'cmd' }), undefined, false);
   if (n === 'mstsc' || n === 'mstsc.exe') return openApp(rdpApp);
+  if (n === 'windowsdefender:' || n === 'security' || n === 'windows security') return openApp(securityApp);
   if (n === 'powershell') return openApp(powershellWindow(), undefined, false);
   if (n === 'powershell_ise' || n === 'ise') return openApp(iseApp());
   if (n === 'explorer') return openApp(explorerApp);

@@ -56,7 +56,7 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
       const target = c.str(c.named.FilePath !== undefined ? 'FilePath' : 'Path', true);
       if (/^https?:\/\//i.test(target)) return void c.shell.host(`${OPEN}url:${target}`);
       const prog = target.toLowerCase().replace(/\.exe$/, '');
-      if (['notepad', 'powershell', 'powershell_ise', 'explorer', 'msedge', 'chrome', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'ms-settings:'].includes(prog)) return void c.shell.host(`${OPEN}app:${prog}`);
+      if (['notepad', 'powershell', 'powershell_ise', 'explorer', 'msedge', 'chrome', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'ms-settings:', 'windowsdefender:'].includes(prog)) return void c.shell.host(`${OPEN}app:${prog}`);
       const path = c.shell.resolvePath(target);
       if (!fileExists(c.w, path)) throw new PsError(`This command cannot be run because "${target}" could not be found.`, 'ObjectNotFound');
       c.shell.host(`${OPEN}file:${path}`);

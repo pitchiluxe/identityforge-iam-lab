@@ -22,6 +22,7 @@ import { eventViewerApp, explorerApp, fileMenu, newMenu, notepadApp, powershellA
 import { iseApp } from './apps/ise.ts';
 import { terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
+import { securityApp } from './apps/security.ts';
 import { coachApp, setUrlOpener } from './apps/coach.ts';
 import { careerApp } from './apps/career.ts';
 import { setAppearance, setMousePropertiesOpener, settingsApp } from './apps/settings.ts';
@@ -33,7 +34,7 @@ import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, careerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, careerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
@@ -353,7 +354,7 @@ export function buildDesktop(root: HTMLElement): void {
     const unread = unreadNotifications();
     tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Show hidden icons', 'aria-label': 'Show hidden icons', onClick: () => toggleHiddenIcons([
       { icon: '\uE99A', title: aiTitle(), dim: ai.status !== 'online', onClick: () => openApp(settingsApp, 'lab') },
-      { icon: '\uE83D', title: 'Windows Security: no actions needed', onClick: () => openApp(settingsApp, 'privacy') },
+      { icon: '\uE83D', title: 'Windows Security', onClick: () => openApp(securityApp) },
       { icon: '\uE705', title: y.vpn.some((v) => v.connected) ? `VPN: connected to ${y.vpn.find((v) => v.connected)!.name}` : 'VPN: not connected', dim: !y.vpn.some((v) => v.connected), onClick: () => openApp(settingsApp, 'network') },
       { icon: '\uE702', title: y.bluetooth ? 'Bluetooth: on' : 'Bluetooth: off', dim: !y.bluetooth, onClick: () => openApp(settingsApp, 'devices') },
       { icon: '\uE895', title: 'Windows Update', onClick: () => openApp(settingsApp, 'update') },

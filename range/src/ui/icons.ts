@@ -89,6 +89,8 @@ const APP = {
   cmd:
     '<rect x="4" y="7" width="40" height="34" rx="4" fill="#0c0c0c" stroke="#5a5a5a" stroke-width="1.5"/><rect x="4" y="7" width="40" height="7" rx="4" fill="#e6e6e6"/><rect x="4" y="11" width="40" height="3" fill="#e6e6e6"/>' +
     '<path d="M11 21l6 4.5-6 4.5" stroke="#e6e6e6" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 31h9" stroke="#e6e6e6" stroke-width="2.6" stroke-linecap="round"/>',
+  security:
+    '<path d="M24 5l16 6v11c0 10-7 17-16 21C15 39 8 32 8 22V11z" fill="#0f6cbd"/><path d="M24 5l16 6v11c0 10-7 17-16 21z" fill="#3a96dd"/><path d="M17 24l5 5 10-11" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
   rdp:
     '<rect x="5" y="8" width="38" height="26" rx="3" fill="#0f6cbd"/><rect x="8" y="11" width="32" height="20" rx="1.5" fill="#9fd3ff"/><path d="M19 34h10l2 5H17z" fill="#78909c"/><rect x="13" y="39" width="22" height="3" rx="1.5" fill="#546e7a"/>' +
     '<path d="M16 21h11M23 17l4 4-4 4" stroke="#0f3b63" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',

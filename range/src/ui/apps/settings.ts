@@ -12,7 +12,8 @@ import { generateBatch } from '../wallpaperGenerator.ts';
 import { DEFAULT_SIGN_IN_PASSWORD, REGIONS, type SystemSettings, TIME_ZONES, applySystem, avatar, avatarData, fmtDate, fmtTime, lockNow, onSysChange, playSound, removeAvatar, setAvatarFromFile, setSys, signInPassword, sys } from '../system.ts';
 import { appVersion, checkForUpdates, installUpdate, isDesktop, onUpdateChange, updateStatus } from '../updates.ts';
 import { PRODUCT, PRODUCT_RELEASES_URL } from '../../product.ts';
-import { type AppDef, onOpenArg } from '../wm.ts';
+import { type AppDef, onOpenArg, openApp } from '../wm.ts';
+import { securityApp } from './security.ts';
 
 type Page = 'home' | 'system' | 'display' | 'sound' | 'notifications' | 'about' | 'devices' | 'mouse' | 'network' | 'personalization' | 'background' | 'colors' | 'themes' | 'lockscreen' | 'start' | 'taskbar'
   | 'apps' | 'accounts' | 'time' | 'gaming' | 'accessibility' | 'pointer' | 'effects' | 'privacy' | 'update' | 'lab';
@@ -296,7 +297,7 @@ export const settingsApp: AppDef = {
               persist();
               toast('Activity history cleared', 'ok');
             }, 'btn')),
-            card('', 'Windows Security', 'Antivirus, firewall and device protection are managed by your organization', null));
+            card('', 'Windows Security', 'Antivirus, firewall and device protection', null, () => openApp(securityApp)));
         case 'update': {
           const u = updateStatus;
           const busy = u.state === 'checking' || u.state === 'downloading' || u.state === 'available';
