@@ -3,8 +3,7 @@
  */
 import { fmt } from '../../core/time.ts';
 import { newBook, newDeck, newWord, writeBook, writeDeck, writeWord } from '../../core/office.ts';
-import type { AuditEvent, World } from '../../core/types.ts';
-import { AD_EVENT_NAMES } from '../../world/audit.ts';
+import type { World } from '../../core/types.ts';
 import { deleteFile, emptyRecycleBin, homeDir, newFile, renameFile, restoreFile, writeFile } from '../../world/docs.ts';
 import { Shell } from '../../terminal/shell.ts';
 import { CMDLETS } from '../../terminal/cmdlets.ts';
@@ -638,84 +637,5 @@ export function setTerminalOpener(fn: (dir: string) => void): void {
 
 // ------------------------------------------------------------------- Event Viewer
 
-export const eventViewerApp: AppDef = {
-  id: 'eventviewer',
-  title: 'Event Viewer',
-  icon: 'eventviewer',
-  width: 1120,
-  height: 660,
-  mount(host) {
-    let idFilter: number[] = [];
-    let text = '';
-    let selId = -1;
-    let tab: 'general' | 'details' = 'general';
-    const layer = h('div', { class: 'mm-layer' });
-    const filterDialog = (): void => {
-      const ids = h('input', { type: 'text', value: idFilter.join(', ') || '<All Event IDs>', style: 'width:100%' });
-      const words = h('input', { type: 'text', value: text, style: 'width:100%' });
-      const shield = h('div', { class: 'mm-shield' });
-      const close = (): void => shield.remove();
-      shield.appendChild(h('div', { class: 'mm-dlg active', style: 'width:min(460px, calc(100% - 16px))' },
-        h('div', { class: 'mm-dlg-title' }, glyph('filter'), h('span', { class: 't' }, 'Filter Current Log'), h('button', { class: 'mm-dlg-x', type: 'button', onClick: close }, '\u2715')),
-        h('div', { class: 'mm-dlg-body mm-stack' },
-          h('div', null, 'Includes/Excludes Event IDs: Enter ID numbers and/or ID ranges separated by commas.'), ids,
-          h('div', null, 'User, computer or keyword:'), words),
-        h('div', { class: 'mm-dlg-foot' },
-          h('button', { class: 'mm-btn default', type: 'button', onClick: () => { idFilter = ids.value.split(/[,\s]+/).map(Number).filter((n) => n > 0); text = words.value.trim(); close(); draw(); } }, 'OK'),
-          h('button', { class: 'mm-btn', type: 'button', onClick: () => { idFilter = []; text = ''; close(); draw(); } }, 'Clear'),
-          h('button', { class: 'mm-btn', type: 'button', onClick: close }, 'Cancel'))));
-      layer.appendChild(shield);
-      setTimeout(() => ids.select(), 20);
-    };
-    const root = h('div', { class: 'mm-root ev' });
-    host.append(root, layer);
-    const draw = (): void => {
-      clear(root);
-      const all = store.world.audit.filter((e) => e.source === 'AD' && e.eventId).sort((a, b) => b.time.localeCompare(a.time) || b.id - a.id);
-      const ev = all.filter((e) => (!idFilter.length || idFilter.includes(e.eventId!)) && (!text || `${e.target} ${e.actor} ${e.origin} ${e.detail}`.toLowerCase().includes(text.toLowerCase()))).slice(0, 500);
-      const sel = ev.find((e) => e.id === selId) ?? null;
-      const fail = (e: AuditEvent): boolean => e.eventId === 4625 || e.eventId === 4771;
-      root.appendChild(h('div', { class: 'mm-menubar' }, ['File', 'Action', 'View', 'Help'].map((m) => h('span', null, m))));
-      root.appendChild(h('div', { class: 'mm-toolbar' }, h('button', { class: 'mm-tb', type: 'button', disabled: true }, glyph('back')), h('button', { class: 'mm-tb', type: 'button', disabled: true }, glyph('forward')), h('span', { class: 'mm-tbsep' }),
-        h('button', { class: 'mm-tb', type: 'button', title: 'Filter Current Log...', onClick: filterDialog }, glyph('filter')), h('button', { class: 'mm-tb', type: 'button', title: 'Refresh', onClick: draw }, glyph('refresh'))));
-      const tree = h('div', { class: 'mm-tree', style: 'width:220px' },
-        ...([['Event Viewer (Local)', 0, 'log'], ['Custom Views', 1, 'container'], ['Windows Logs', 1, 'container'], ['Application', 2, 'log'], ['Security', 2, 'log'], ['Setup', 2, 'log'], ['System', 2, 'log'], ['Forwarded Events', 2, 'log'], ['Applications and Services Logs', 1, 'container'], ['Subscriptions', 1, 'container']] as [string, number, SmallIcon][])
-          .map(([n, d, i]) => h('div', { class: `mm-trow ${n === 'Security' ? 'sel' : ''}`, style: `padding-left:${d * 16 + 4}px` }, glyph(i), h('span', { class: 'mm-tlabel' }, n))));
-      const listTable = h('table', { class: 'mm-table' },
-        h('colgroup', null, h('col', { style: 'width:15%' }), h('col', { style: 'width:20%' }), h('col', { style: 'width:28%' }), h('col', { style: 'width:9%' }), h('col', { style: 'width:28%' })),
-        h('thead', null, h('tr', null, ['Keywords', 'Date and Time', 'Source', 'Event ID', 'Task Category'].map((x) => h('th', null, x)))),
-        h('tbody', null, ev.map((e) => h('tr', { class: `row ${e.id === selId ? 'sel' : ''}`, onClick: () => { selId = e.id; draw(); } },
-          h('td', null, h('span', { class: 'mm-cell' }, glyph(fail(e) ? 'lockFail' : 'keySuccess'), h('span', null, fail(e) ? 'Audit Failure' : 'Audit Success'))), h('td', null, new Date(e.time).toLocaleString()), h('td', null, 'Microsoft Windows security auditing.'),
-          h('td', null, String(e.eventId)), h('td', null, taskCategory(e.eventId!))))));
-      const message = sel ? `${AD_EVENT_NAMES[sel.eventId!] ?? sel.action}.\n\nSubject:\n\tSecurity ID:\t\t${sel.actor === 'SYSTEM' ? 'SYSTEM' : `MERIDIAN\\${sel.actor}`}\n\tAccount Name:\t\t${sel.actor}\n\tAccount Domain:\t\tMERIDIAN\n\n${sel.eventId === 4740 ? 'Account That Was Locked Out' : 'Target Account'}:\n\tSecurity ID:\t\tMERIDIAN\\${sel.target}\n\tAccount Name:\t\t${sel.target}\n\nAdditional Information:\n\t${sel.eventId === 4740 ? sel.detail : `Client Address:\t\t${sel.origin}`}${sel.detail && sel.eventId !== 4740 ? `\n\tDetail:\t\t\t${sel.detail}` : ''}` : '';
-      const details = sel ? `- System\n  - Provider [ Name] Microsoft-Windows-Security-Auditing\n    EventID ${sel.eventId}\n    TimeCreated [ SystemTime] ${sel.time}\n    Computer MHS-DC01.meridianhealth.test\n- EventData\n    TargetUserName ${sel.target}\n    TargetDomainName MERIDIAN\n    SubjectUserName ${sel.actor}\n    ${sel.eventId === 4740 ? `CallerComputerName ${sel.detail.replace('Caller Computer Name: ', '')}` : `IpAddress ${sel.origin}`}` : '';
-      const center = h('div', { class: 'ev-center' },
-        h('div', { class: 'ev-head' }, h('strong', null, 'Security'), `   Number of events: ${all.length.toLocaleString()}${idFilter.length || text ? `   Filtered: Log: Security; Source: ; Event ID: ${idFilter.join(', ') || 'all'}. Number of events: ${ev.length}` : ''}`),
-        h('div', { class: 'mm-list ev-list', 'data-keep-scroll': '' }, listTable),
-        h('div', { class: 'ev-detail' },
-          h('div', { class: 'ev-detail-head' }, sel ? `Event ${sel.eventId}, Microsoft Windows security auditing.` : 'Select an event to view its details.'),
-          h('div', { class: 'mm-tabrow' }, h('div', { class: `mm-tab ${tab === 'general' ? 'sel' : ''}`, onClick: () => { tab = 'general'; draw(); } }, 'General'), h('div', { class: `mm-tab ${tab === 'details' ? 'sel' : ''}`, onClick: () => { tab = 'details'; draw(); } }, 'Details')),
-          h('div', { class: 'mm-tabpanel ev-panel' },
-            sel ? (tab === 'general'
-              ? h('div', null, h('pre', { class: 'ev-msg' }, message), h('div', { class: 'ev-meta' },
-                ...([['Log Name:', 'Security'], ['Source:', 'Microsoft Windows security'], ['Logged:', new Date(sel.time).toLocaleString()], ['Event ID:', String(sel.eventId)], ['Task Category:', taskCategory(sel.eventId!)], ['Level:', 'Information'], ['Keywords:', fail(sel) ? 'Audit Failure' : 'Audit Success'], ['User:', 'N/A'], ['Computer:', 'MHS-DC01.meridianhealth.test']] as [string, string][]).flatMap(([k, v]) => [h('span', null, k), h('span', null, v)])))
-              : h('pre', { class: 'ev-msg' }, details)) : null)));
-      const actions = h('div', { class: 'ev-actions' },
-        h('div', { class: 'ev-act-head' }, 'Actions'), h('div', { class: 'ev-act-sub' }, 'Security'),
-        ...([['Open Saved Log...', null], ['Create Custom View...', null], ['Import Custom View...', null], ['Clear Log...', null], ['Filter Current Log...', filterDialog], ['Properties', null], ['Find...', filterDialog], ['Save All Events As...', null], ['Refresh', draw]] as [string, (() => void) | null][])
-          .map(([l, fn]) => h('button', { class: 'ev-act', type: 'button', disabled: !fn, onClick: () => fn?.() }, l)));
-      root.appendChild(h('div', { class: 'mm-panes' }, tree, center, actions));
-      root.appendChild(h('div', { class: 'mm-status' }, `${ev.length} event(s) shown`));
-    };
-    draw();
-    return { redraw: draw };
-  },
-};
-
-function taskCategory(id: number): string {
-  if ([4624, 4625].includes(id)) return 'Logon';
-  if ([4771].includes(id)) return 'Kerberos Authentication Service';
-  if ([4728, 4729, 4732, 4733, 4727].includes(id)) return 'Security Group Management';
-  if ([5136, 5139].includes(id)) return 'Directory Service Changes';
-  return 'User Account Management';
-}
+// Event Viewer lives in its own module; re-exported so existing imports keep working.
+export { eventViewerApp } from './eventviewer.ts';
