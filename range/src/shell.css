@@ -1050,3 +1050,22 @@ body::before { content: ''; position: fixed; inset: 0; z-index: 2147483646; poin
 .cert-table { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
 .cert-table table { margin: 0; }
 .cert-table td .badge:first-child { margin-left: 0; }
+
+/* ---- Dark mode readability */
+/* Chrome's page area follows the theme, as Chrome does for sites that support dark mode. */
+:root[data-theme='dark'] .cr-view { background: #202124; color: #e3e3e3; }
+/* Remote Desktop Connection stays light like mstsc; its own tokens keep grey text grey-on-white. */
+.rdp { --ink: #1b1b1b; --ink-2: #5d5d5d; --layer: #ffffff; --layer-2: #fbfbfb; --line: #e5e5e5; --line-strong: #d1d1d1; --hover: rgba(0, 0, 0, 0.04); color-scheme: light; }
+:root[data-theme='dark'] .cp-link { color: #7cb7ff; }
+:root[data-theme='dark'] .cp-link:hover { color: #a9d0ff; }
+.xl-grid th.hsel { color: #0a5c30; }
+:root[data-theme='dark'] .cr-list, :root[data-theme='dark'] .cr-card { background: #292a2d; box-shadow: none; }
+:root[data-theme='dark'] .cr-row { border-top-color: #3c4043; }
+:root[data-theme='dark'] .cr-row .cr-ib, :root[data-theme='dark'] .cr-ntp-note { color: #9aa0a6; }
+:root[data-theme='dark'] .cr-tile { color: #e8eaed; }
+:root[data-theme='dark'] .cr-tile:hover { background: rgba(232, 234, 237, 0.08); }
+:root[data-theme='dark'] .cr-tile-icon { box-shadow: inset 0 0 0 6px #303134; }
+:root[data-theme='dark'] .cr-ntp-box { background: #303134; border-color: #5f6368; }
+:root[data-theme='dark'] .cr-ntp-search { color: #e8eaed; }
+:root[data-theme='dark'] .cr-time, :root[data-theme='dark'] .cr-url, :root[data-theme='dark'] .cr-ntp-box .mdl { color: #9aa0a6; }
+:root[data-theme='dark'] .cr-fav:not(.chrome) { filter: brightness(0.8); }
