@@ -10,7 +10,16 @@ import type { Department, ScenarioInstance, Ticket, World } from '../core/types.
 import { DEPARTMENTS } from '../world/company.ts';
 import type { Template } from '../scenarios/template.ts';
 
-const BASE = '/ollama';
+/**
+ * Where the local model is reached. In development and in the desktop app a
+ * same-origin /ollama proxy forwards to 127.0.0.1:11434 with no Origin header.
+ * The web edition (served over https) has no proxy, so it calls Ollama on the
+ * learner's own computer directly; Ollama answers only if OLLAMA_ORIGINS
+ * allows the site (see WEB_OLLAMA_HELP).
+ */
+export const WEB_EDITION = typeof location !== 'undefined' && location.protocol === 'https:';
+const BASE = WEB_EDITION ? 'http://127.0.0.1:11434' : '/ollama';
+export const WEB_OLLAMA_HELP = 'In the web edition, Ollama must allow this website. In PowerShell run: setx OLLAMA_ORIGINS "*" then quit Ollama from the tray and start it again. Or install the desktop app, which needs no setting.';
 const PREFERRED = ['llama3.2', 'qwen3.5', 'gemma4', 'qwen2.5', 'llama3.1', 'mistral', 'gemma2', 'phi3'];
 
 export interface ModelInfo {

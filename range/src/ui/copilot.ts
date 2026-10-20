@@ -6,7 +6,7 @@
  * an action breaks a control, and chats through the local Ollama model with
  * the live checks and your recent actions as context.
  */
-import { type ChatMessage, chat } from '../ai/ollama.ts';
+import { type ChatMessage, WEB_EDITION, WEB_OLLAMA_HELP, chat } from '../ai/ollama.ts';
 import { type LiveStatus, type Snapshot, copilotSystemPrompt, diff, liveStatus, nudgeText, playerActions, snapshot } from '../ai/monitor.ts';
 import { clear, h, markdown, toast } from './dom.ts';
 import { store, subscribe } from './store.ts';
@@ -127,6 +127,7 @@ function offlineAnswer(): string {
   const acts = playerActions(store.world, 3);
   if (acts.length) lines.push('', 'Your last actions:', ...acts.map((a) => `- ${a.action} on ${a.target}`));
   lines.push('', 'To chat with me, start Ollama (`ollama serve`) and pull a model (`ollama pull llama3.2`), then reopen this panel.');
+  if (WEB_EDITION) lines.push('', WEB_OLLAMA_HELP);
   return lines.join('\n');
 }
 

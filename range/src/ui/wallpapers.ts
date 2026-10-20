@@ -51,10 +51,13 @@ const MARKS: Wallpaper[] = [
   { id: 'iam-slate', label: 'IAM Slate', gradient: wordmark('#10151c', 'IAM', '#4a5a6a') },
 ];
 
+/** Vite's base path: '/' in dev and the desktop app, '/lab/' on the website. */
+const ROOT = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+
 const ART: Wallpaper[] = [
-  { id: 'blue-shield', label: 'Blue Glass Shield', gradient: '#07121f url("/wallpapers/blue-shield.webp") center/cover no-repeat' },
-  { id: 'network-constellation', label: 'Network Constellation', gradient: '#06121a url("/wallpapers/network-constellation.webp") center/cover no-repeat' },
-  { id: 'emerald-core', label: 'Emerald Secure Core', gradient: '#061411 url("/wallpapers/emerald-core.webp") center/cover no-repeat' },
+  { id: 'blue-shield', label: 'Blue Glass Shield', gradient: `#07121f url("${ROOT}wallpapers/blue-shield.webp") center/cover no-repeat` },
+  { id: 'network-constellation', label: 'Network Constellation', gradient: `#06121a url("${ROOT}wallpapers/network-constellation.webp") center/cover no-repeat` },
+  { id: 'emerald-core', label: 'Emerald Secure Core', gradient: `#061411 url("${ROOT}wallpapers/emerald-core.webp") center/cover no-repeat` },
 ];
 
 export const WALLPAPERS: Wallpaper[] = [...MARKS, ...COLOURS, ...ART];

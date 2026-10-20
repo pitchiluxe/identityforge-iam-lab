@@ -26,6 +26,7 @@
       <a href="#shift">A shift</a>
       <a href="#labs">Labs</a>
       <a href="#install">Install</a>
+      <a href="/lab/">Try online</a>
       <a href="https://github.com/pitchiluxe/identityforge-iam-lab">GitHub</a>
     </nav>
     <a class="btn btn-small js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">Download</a>
@@ -41,9 +42,10 @@
             <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18"><path d="M2 3.6 8.4 2.7v6.2H2zm7.2-1 8.8-1.2v7.5H9.2zM2 9.7h6.4v6.2L2 15zm7.2 0H18v7.5l-8.8-1.2z" fill="currentColor"/></svg>
             Download for Windows
           </a>
-          <a class="btn btn-quiet" href="https://github.com/pitchiluxe/identityforge-iam-lab">View the source</a>
+          <a class="btn btn-quiet" href="/lab/">Try it in your browser</a>
         </div>
         <p class="fine" id="release-line">Windows 10 and 11, 64-bit. Free and open source. Updates itself.</p>
+        <p class="fine">No install needed to try it: the web edition runs the same lab and saves your progress in your browser. <a class="on-dark" href="https://github.com/pitchiluxe/identityforge-iam-lab">View the source</a>.</p>
       </div>
 
       <figure class="graph" aria-label="Animation: a nurse's account is provisioned with birthright access, then removed when she leaves">
@@ -162,6 +164,7 @@
       <div class="notes">
         <p><strong>Automatic updates.</strong> The app checks for new releases when it starts and every six hours, downloads them in the background, and installs them when you restart. Settings &gt; Windows Update shows the current version and status.</p>
         <p><strong>Optional AI.</strong> Install <a href="https://ollama.com/download">Ollama</a> and run <code>ollama pull llama3.2</code> to turn on Copilot chat, AI-designed labs and reworded tickets.</p>
+        <p><strong>Rather not install?</strong> <a href="/lab/">Open the web edition</a>. It is the same lab in your browser; progress stays in that browser, and Copilot chat needs Ollama to allow the site (<code>setx OLLAMA_ORIGINS "*"</code>, then restart Ollama).</p>
         <p><strong>Prefer the source?</strong> Clone the repository and run <code>npm ci</code> then <code>npm run dev</code> in <code>range/</code>.</p>
       </div>
     </section>

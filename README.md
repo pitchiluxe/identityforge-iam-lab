@@ -12,7 +12,7 @@ Learn identity. Build evidence. Tell your career story.
 
 [**Download the Windows installer**](https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest) (Windows 10/11, 64-bit, free). The installed app updates itself from this repository's releases. Sign in as **Admin**; the default password `Meridian!2026` is shown on the sign-in screen. The installer is not code-signed yet, so SmartScreen may ask you to choose **More info**, then **Run anyway**.
 
-Meridian IAM Range is a simulated IAM Operations workstation at a fictional hospital system, Meridian Health System: Active Directory Users and Computers, PowerShell and the ISE, Chrome with Entra ID, Okta, ServiceDesk and HR portals, Event Viewer, and an IAM Copilot that watches every lab. Source: [range/](range/README.md). Landing page source: [site/](site/) (deployed with Vercel using [vercel.json](vercel.json)).
+Meridian IAM Range is a simulated IAM Operations workstation at a fictional hospital system, Meridian Health System: Active Directory Users and Computers, PowerShell and the ISE, Chrome with Entra ID, Okta, ServiceDesk and HR portals, Event Viewer, and an IAM Copilot that watches every lab. Rather not install? The landing page has a web edition of the same lab at `/lab/` that runs in the browser. Source: [range/](range/README.md). Landing page source: [site/](site/) (deployed with Vercel using [vercel.json](vercel.json)).
 
 ## Practice path to an IAM job
 

@@ -65,6 +65,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.015em; }
 .hero h1 { font-size: clamp(34px, 3.9vw, 54px); line-height: 1.06; font-weight: 800; letter-spacing: -0.03em; max-width: 17ch; }
 .lede { margin: 22px 0 30px; max-width: 54ch; color: var(--night-ink-2); font-size: 19px; }
 .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.fine a.on-dark { color: var(--night-ink); }
+.fine + .fine { margin-top: 6px; }
 .fine { margin: 16px 0 0; font-size: 14px; color: var(--night-ink-2); }
 
 .graph { position: relative; margin: 0; padding: 18px 18px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(157, 179, 199, 0.18); }
@@ -142,7 +144,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.015em; }
 .install-steps li::before { content: counter(inst); display: block; font: 800 34px/1 var(--font); color: var(--scrub); margin-bottom: 14px; }
 .install-steps h3 { font-size: 18px; margin-bottom: 8px; }
 .install-steps p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
-.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-top: 30px; }
+.notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 30px; }
 .notes p { margin: 0; color: var(--ink-2); font-size: 15px; }
 .notes strong { color: var(--ink); }
 

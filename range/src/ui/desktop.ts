@@ -23,7 +23,8 @@ import { careerApp } from './apps/career.ts';
 import { setAppearance, setMousePropertiesOpener, settingsApp } from './apps/settings.ts';
 import { controlPanelApp, openMouseProperties, setControlPanelLauncher } from './apps/control.ts';
 import { installLaunchers, openFile, openProgram } from './launch.ts';
-import { PRODUCT } from '../product.ts';
+import { PRODUCT, PRODUCT_RELEASES_URL } from '../product.ts';
+import { isDesktop } from './updates.ts';
 import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
 
 const ise = iseApp();
@@ -66,6 +67,9 @@ export function lockScreen(root: HTMLElement, done: () => void): void {
   const brand = h('div', { class: 'lk-pill lk-brand' }, PRODUCT.name);
   const author = h('div', { class: 'lk-pill lk-author' }, `Created by ${PRODUCT.publisher}`);
   screen.append(graph, brand, author);
+  if (!isDesktop && location.protocol === 'https:') {
+    screen.appendChild(h('a', { class: 'lk-pill lk-web', href: PRODUCT_RELEASES_URL, target: '_blank', rel: 'noopener noreferrer', onClick: (e: Event) => e.stopPropagation() }, 'Web edition: progress is saved in this browser. Get the desktop app'));
+  }
   let timer = 0;
   let stage: 'lock' | 'signin' = 'lock';
 

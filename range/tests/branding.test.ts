@@ -22,3 +22,9 @@ test('the landing page downloads from the same releases the app updates from', {
   assert.ok(site.includes(`github.com/${PRODUCT.repo}/releases`), 'download links point at the release feed');
   assert.ok(site.includes(PRODUCT.name));
 });
+
+test('the website carries the web edition of the lab under /lab/', { skip: !existsSync(new URL('../../site/lab/index.html', import.meta.url)) }, () => {
+  const lab = read('../../site/lab/index.html');
+  assert.match(lab, /src="\/lab\/assets\/[^"]+\.js"/, 'built with --base=/lab/ (npm run build:web)');
+  assert.ok(read('../../site/index.html').includes('href="/lab/"'), 'the landing page links to it');
+});

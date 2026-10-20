@@ -12,6 +12,10 @@ Sign in as **Admin** with the password shown on the sign-in screen: `Meridian!20
 
 The installed app updates itself: it checks GitHub Releases when it starts and every six hours, downloads new versions in the background, and installs them on restart. Settings > Windows Update shows the version and status. Your world, settings and career record are kept.
 
+## Use it in the browser
+
+No install needed: the landing page's **Try it in your browser** opens the web edition at `/lab/`. It is the same lab; progress is saved in that browser. Copilot chat reaches Ollama on your own computer only if Ollama allows the site: run `setx OLLAMA_ORIGINS "*"` in PowerShell, then quit and restart Ollama. `npm run build:web` rebuilds it into `../site/lab/` (the release script does this too).
+
 ## Run from source
 
 ```powershell
