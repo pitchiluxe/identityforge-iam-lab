@@ -14,7 +14,7 @@ import { act, persist, store, subscribe } from './store.ts';
 import { ai } from './aiState.ts';
 import { appIcon, glyph, fileGlyph, type AppIcon } from './icons.ts';
 import { type MenuEntry, closeMenus, showMenu } from './ctxmenu.ts';
-import { type AppDef, closeAll, initWm, isPinned, openApp, setPinToggle, setPinned } from './wm.ts';
+import { type AppDef, closeAll, initWm, isPinned, openApp, setPinToggle, setPinned, minimizeAll } from './wm.ts';
 import { appearance, applyAppearance, applyWallpaper, lockScreenCss } from './theme.ts';
 import { browserApp } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
@@ -537,6 +537,8 @@ export function firstRun(): void {
   if (startup.includes('terminal')) openProgram('wt');
   if (startup.includes('coach')) openApp(coachApp);
   if (startup.includes('notes') || !store.world.scenarios.length) openApp(notepadApp(`${desktopDir()}\\START-HERE.txt`));
+  // Startup apps wait on the taskbar, so the desktop is clear after sign-in; click one to open it.
+  minimizeAll();
   if (startup.includes('copilot')) toggleCopilot(true);
   restoreStickyNotes();
 }

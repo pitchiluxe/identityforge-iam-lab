@@ -216,6 +216,11 @@ export function closeAll(): void {
   for (const w of [...wins]) close(w);
 }
 
+/** Minimize every open window to the taskbar (startup apps after sign-in). */
+export function minimizeAll(): void {
+  for (const w of wins) if (!w.minimized) minimize(w);
+}
+
 function drag(win: Win): void {
   const bar = win.el.querySelector('.win-bar') as HTMLElement;
   bar.addEventListener('dblclick', (e) => { if (!(e.target as HTMLElement).closest('button')) toggleMax(win); });
