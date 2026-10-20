@@ -89,6 +89,8 @@ const APP = {
   cmd:
     '<rect x="4" y="7" width="40" height="34" rx="4" fill="#0c0c0c" stroke="#5a5a5a" stroke-width="1.5"/><rect x="4" y="7" width="40" height="7" rx="4" fill="#e6e6e6"/><rect x="4" y="11" width="40" height="3" fill="#e6e6e6"/>' +
     '<path d="M11 21l6 4.5-6 4.5" stroke="#e6e6e6" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 31h9" stroke="#e6e6e6" stroke-width="2.6" stroke-linecap="round"/>',
+  markdown:
+    '<rect x="5" y="10" width="38" height="28" rx="4" fill="#fff" stroke="#1f2937" stroke-width="2.4"/><path d="M11 31V17l5 6 5-6v14" stroke="#1f2937" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round"/><path d="M32 17v13M27 25l5 5 5-5" stroke="#0f6cbd" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
   security:
     '<path d="M24 5l16 6v11c0 10-7 17-16 21C15 39 8 32 8 22V11z" fill="#0f6cbd"/><path d="M24 5l16 6v11c0 10-7 17-16 21z" fill="#3a96dd"/><path d="M17 24l5 5 10-11" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
   rdp:

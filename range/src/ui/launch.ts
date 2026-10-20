@@ -8,6 +8,7 @@ import { iseApp } from './apps/ise.ts';
 import { batchWindow, terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { securityApp } from './apps/security.ts';
+import { markdownApp } from './apps/markdown.ts';
 import { sys } from './system.ts';
 import { browserApp, chromeWindow } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
@@ -25,6 +26,7 @@ export function openFile(path: string, mode: OpenMode = 'open'): void {
   if (isScript && action === 'run') return openApp(powershellWindow(path), undefined, false);
   if (isScript && action === 'edit') return openApp(iseApp(path), path);
   if (isBatch && action === 'run') return openApp(batchWindow(path), undefined, false);
+  if (/\.(md|markdown)$/i.test(path) && action === 'open') return openApp(markdownApp(path));
   openApp(notepadApp(path));
 }
 
