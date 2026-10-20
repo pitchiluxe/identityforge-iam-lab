@@ -2,6 +2,7 @@
  * Windows PowerShell, Notepad, File Explorer and Event Viewer.
  */
 import { fmt } from '../../core/time.ts';
+import { newBook, newDeck, newWord, writeBook, writeDeck, writeWord } from '../../core/office.ts';
 import type { AuditEvent, World } from '../../core/types.ts';
 import { AD_EVENT_NAMES } from '../../world/audit.ts';
 import { deleteFile, emptyRecycleBin, homeDir, newFile, renameFile, restoreFile, writeFile } from '../../world/docs.ts';
@@ -443,6 +444,9 @@ export function fileTypeName(path: string): string {
   if (/\.csv$/i.test(path)) return 'Microsoft Excel Comma Separated Values File';
   if (/\.md$/i.test(path)) return 'Markdown Source File';
   if (/\.json$/i.test(path)) return 'JSON Source File';
+  if (/\.docx$/i.test(path)) return 'Microsoft Word Document';
+  if (/\.xlsx$/i.test(path)) return 'Microsoft Excel Worksheet';
+  if (/\.pptx$/i.test(path)) return 'Microsoft PowerPoint Presentation';
   return 'Text Document';
 }
 
@@ -499,6 +503,9 @@ export function newMenu(dir: string, after: (path: string) => void): MenuEntry {
     { label: 'Text Document', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Text Document', '.txt'); })) after(p); } },
     { label: 'Windows Batch File', icon: '\uE756', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Batch File', '.bat', '@echo off\r\nrem Write your commands here, then double-click the file to run it.\r\necho Hello from %COMPUTERNAME%\r\nwhoami\r\npause\r\n'); })) after(p); } },
     { label: 'Windows PowerShell Script', icon: '\uE756', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Script', '.ps1', '# Write your script here, then double-click the file to run it.\nWrite-Host "Hello from $env:COMPUTERNAME"\n'); })) after(p); } },
+    { label: 'Microsoft Word Document', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Microsoft Word Document', '.docx', writeWord(newWord())); })) after(p); } },
+    { label: 'Microsoft Excel Worksheet', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Microsoft Excel Worksheet', '.xlsx', writeBook(newBook())); })) after(p); } },
+    { label: 'Microsoft PowerPoint Presentation', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Microsoft PowerPoint Presentation', '.pptx', writeDeck(newDeck())); })) after(p); } },
     { label: 'CSV File', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Data', '.csv', 'EmployeeID,FirstName,LastName,Department\n'); })) after(p); } },
   ] };
 }

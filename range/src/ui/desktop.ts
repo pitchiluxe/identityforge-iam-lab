@@ -24,6 +24,10 @@ import { terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { securityApp } from './apps/security.ts';
 import { screenPenApp, toggleScreenPen } from './pen.ts';
+import { wordStartApp } from './apps/word.ts';
+import { excelStartApp } from './apps/excel.ts';
+import { powerpointStartApp } from './apps/powerpoint.ts';
+import { restoreStickyNotes, stickyNotesApp } from './apps/stickynotes.ts';
 import { coachApp, setUrlOpener } from './apps/coach.ts';
 import { careerApp } from './apps/career.ts';
 import { setAppearance, setMousePropertiesOpener, settingsApp } from './apps/settings.ts';
@@ -35,7 +39,7 @@ import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, careerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
@@ -534,4 +538,5 @@ export function firstRun(): void {
   if (startup.includes('coach')) openApp(coachApp);
   if (startup.includes('notes') || !store.world.scenarios.length) openApp(notepadApp(`${desktopDir()}\\START-HERE.txt`));
   if (startup.includes('copilot')) toggleCopilot(true);
+  restoreStickyNotes();
 }

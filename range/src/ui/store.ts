@@ -26,6 +26,8 @@ export interface Settings {
   terminal?: Partial<import('./apps/terminal.ts').TerminalSettings>;
   security?: import('./apps/security.ts').SecurityState;
   markdown?: Partial<import('./apps/markdown.ts').MarkdownPrefs>;
+  stickyNotes?: import('./apps/stickynotes.ts').StickyNote[];
+  office?: { recent?: string[] };
   notepad?: Partial<import('./apps/tools.ts').NotepadPrefs>;
   /** Seed ids of generated wallpapers, oldest first (see ui/wallpaperGenerator.ts). */
   generatedWallpapers?: string[];

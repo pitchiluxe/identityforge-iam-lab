@@ -67,6 +67,9 @@ const SMALL = {
   csvFile: page() + '<path d="M5 7h6v6H5zM5 9h6M5 11h6M8 7v6" stroke="#1d7a2c" stroke-width=".7" fill="none"/>',
   psFile: page('#e8eefb') + '<path d="M5 8l2 1.5L5 11M8 11.5h3" stroke="#1d3f8f" stroke-width="1" fill="none"/>',
   batFile: page('#eceff1') + '<rect x="4.5" y="7.5" width="7" height="5" rx=".6" fill="#1f1f1f"/><path d="M5.7 9l1.1.8-1.1.8M7.6 11h1.6" stroke="#e6e6e6" stroke-width=".7" fill="none"/><circle cx="11.6" cy="6" r="1.6" fill="#9e9e9e"/>',
+  docxFile: page('#e8f0fb') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#185abd"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">W</text>',
+  xlsxFile: page('#e7f5ec') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#107c41"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">X</text>',
+  pptxFile: page('#fbece7') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#c43e1c"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">P</text>',
   mdFile: page() + '<path d="M4.5 12V8l1.6 2 1.6-2v4M10 8v4M8.8 10.8l1.2 1.2 1.2-1.2" stroke="#4b5563" stroke-width=".8" fill="none"/>',
   desktop: '<rect x="1.5" y="2.5" width="13" height="9" rx=".8" fill="#3c8de0" stroke="#1f4f86" stroke-width=".7"/><rect x="5" y="12.5" width="6" height="1.4" fill="#6b7886"/>',
   downloads: '<circle cx="8" cy="8" r="6.5" fill="#1f6fd1"/><path d="M8 4v6M5.5 7.8L8 10.3l2.5-2.5M5 12h6" stroke="#fff" stroke-width="1.4" fill="none"/>',
@@ -89,6 +92,17 @@ const APP = {
   cmd:
     '<rect x="4" y="7" width="40" height="34" rx="4" fill="#0c0c0c" stroke="#5a5a5a" stroke-width="1.5"/><rect x="4" y="7" width="40" height="7" rx="4" fill="#e6e6e6"/><rect x="4" y="11" width="40" height="3" fill="#e6e6e6"/>' +
     '<path d="M11 21l6 4.5-6 4.5" stroke="#e6e6e6" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 31h9" stroke="#e6e6e6" stroke-width="2.6" stroke-linecap="round"/>',
+  word:
+    '<rect x="14" y="6" width="30" height="36" rx="3" fill="#2b7cd3"/><rect x="14" y="6" width="30" height="12" rx="3" fill="#41a5ee"/><rect x="14" y="30" width="30" height="12" rx="3" fill="#185abd"/>' +
+    '<rect x="4" y="13" width="22" height="22" rx="2.5" fill="#185abd"/><text x="15" y="29.5" font-family="Segoe UI,Arial" font-weight="700" font-size="15" fill="#fff" text-anchor="middle">W</text>',
+  excel:
+    '<rect x="14" y="6" width="30" height="36" rx="3" fill="#21a366"/><rect x="14" y="6" width="30" height="12" rx="3" fill="#33c481"/><rect x="14" y="30" width="30" height="12" rx="3" fill="#107c41"/>' +
+    '<rect x="4" y="13" width="22" height="22" rx="2.5" fill="#107c41"/><text x="15" y="29.5" font-family="Segoe UI,Arial" font-weight="700" font-size="15" fill="#fff" text-anchor="middle">X</text>',
+  powerpoint:
+    '<rect x="14" y="6" width="30" height="36" rx="3" fill="#ed6c47"/><rect x="14" y="6" width="30" height="12" rx="3" fill="#ff8f6b"/><rect x="14" y="30" width="30" height="12" rx="3" fill="#c43e1c"/>' +
+    '<rect x="4" y="13" width="22" height="22" rx="2.5" fill="#c43e1c"/><text x="15" y="29.5" font-family="Segoe UI,Arial" font-weight="700" font-size="15" fill="#fff" text-anchor="middle">P</text>',
+  stickynotes:
+    '<path d="M8 8h32v24l-8 8H8z" fill="#f7e26b"/><path d="M8 8h32v6H8z" fill="#e5c83a"/><path d="M32 40v-8h8z" fill="#d8b92c"/><path d="M13 21h20M13 26h16" stroke="#8a7a1c" stroke-width="2" stroke-linecap="round"/>',
   pen:
     '<circle cx="24" cy="24" r="19" fill="#0f6cbd"/><path d="M15 33l2-7 13-13 5 5-13 13z" fill="#fff"/><path d="M28 15l5 5" stroke="#0f6cbd" stroke-width="2"/><path d="M15 33l2-7 5 5z" fill="#ffb900"/>',
   markdown:
@@ -194,5 +208,8 @@ export function fileGlyph(path: string): SmallIcon {
   if (/\.ps1$/i.test(path)) return 'psFile';
   if (/\.(bat|cmd)$/i.test(path)) return 'batFile';
   if (/\.md$/i.test(path)) return 'mdFile';
+  if (/\.docx$/i.test(path)) return 'docxFile';
+  if (/\.xlsx$/i.test(path)) return 'xlsxFile';
+  if (/\.pptx$/i.test(path)) return 'pptxFile';
   return 'textFile';
 }
