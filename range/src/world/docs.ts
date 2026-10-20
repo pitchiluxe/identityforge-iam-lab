@@ -159,6 +159,78 @@ Do not delete the account. Evidence must be preserved.
 - New policies start in **Report-only**, unless Security has approved enforcing them immediately.
 - Legacy authentication is blocked for all users (policy CA001).
 `,
+  'Identity-Governance-and-Certification-Procedure.md': `# Identity Governance and Certification Procedure (IAM-SOP-006)
+
+The identity governance platform (Governance console, https://iga.meridianhealth.test) is modelled on SailPoint Identity Security Cloud. Saviynt names are given in brackets.
+
+## Sources and aggregation [security systems / endpoints, imports]
+- PeopleHub is the **authoritative source**: every identity is an HR worker.
+- The platform only knows what it last **aggregated**. After a change in a source, aggregate it before you trust what the console shows.
+- Correlation rule: Active Directory by employeeID; applications by login = UPN, or by the employee ID the application stores.
+
+## Uncorrelated accounts [orphan / unlinked accounts]
+1. Aggregate the source.
+2. For each uncorrelated account, find the person by **employee ID**, never by display name. Two people can share a name; an employee ID cannot.
+3. If the employee ID belongs to a worker, correlate the account to that identity, whatever their status. If that worker is **Terminated**, the account must also be disabled.
+4. If the account belongs to nobody (shared, agency, test), mark it as **no identity** and disable it.
+5. Record every decision on the ticket.
+
+## Certification campaigns [access reviews]
+- Every line is decided: **Approve** (matches the person's job, or a current approved exception) or **Revoke**.
+- Revoke: access of **Terminated** identities; **SoD** conflicts (keep the right that belongs to the job, revoke the other); access **outside the role** with no exception on file.
+- Approve: birthright access for the current role, and lines covered by an exception listed in Governance > Access exceptions (check the expiry date).
+- Never certify your own access, and never approve in bulk without reading the flags. A campaign that changes nothing is a finding, not a pass.
+- **Sign off** only when every line is decided. Revocations on connected sources are provisioned automatically.
+- Applications with no connector (PayrollPro) produce **manual work items**: deactivate the account in the application, then resolve the work item. Remediation is not finished until the account is gone.
+`,
+  'Privileged-Access-Vault-Standard.md': `# Privileged Access Vault Standard (SEC-STD-009)
+
+The vault (https://vault.meridianhealth.test) is modelled on CyberArk Privileged Access Manager.
+
+## Safes and roles
+- **Use**: connect through a recorded session (PSM). You never see the password.
+- **Retrieve**: show or copy the password. Every retrieval is audited and must be justified.
+- **Approve**: second person for dual-control safes.
+- **Manage**: onboard accounts, change passwords, register usages.
+
+## Tier 0 (safe T0-DomainAdmins)
+1. Raise or reference an **approved Change** (CHG) or a P1 incident.
+2. Request access in the vault with the ticket number. A second person approves (dual control).
+3. **Connect** through a session. Do not show or copy the password.
+4. End the session when done. The password changes automatically at check-in.
+
+## Passwords are never shared
+Nobody (colleague, vendor or manager) is given a privileged password by email, chat or phone. Vendors work through a supervised, recorded session. A password that has been disclosed must be changed immediately.
+
+## Service accounts
+- Every privileged service account is in the vault with **automatic management** on (change every 30 days).
+- Before the first change, register every **usage** (Windows service, scheduled task, application pool) on every server. The CPM updates registered usages; anything not registered keeps the old password and fails on its next restart.
+
+## Break-glass accounts (safe BreakGlass)
+Use only when normal administration is impossible (for example an Entra ID or MFA outage), under a P1 incident. After any use: change the password (reconcile), review the sign-in, and record it. A use with no matching incident is a security incident: raise a SIR, revoke the account's sessions and change the password.
+`,
+  'SSO-Troubleshooting-Runbook.md': `# SSO Troubleshooting Runbook (IAM-RB-003)
+
+Single sign-on is a trust between Entra ID (the identity provider) and the application (the service provider). Both sides hold configuration and they must agree. Start every SSO ticket by reproducing it with **Test single sign-on** on the enterprise app, then read the error and the decoded response.
+
+## SAML
+| Error | Meaning | Fix |
+|---|---|---|
+| AADSTS700016 | The Identifier the app sends (its Entity ID) is not configured in Entra | Set **Identifier (Entity ID)** in Basic SAML Configuration to exactly what the app sends |
+| AADSTS50011 | The app's ACS (Reply URL) is not in Entra's list | Add the exact Reply URL. No wildcards |
+| AADSTS50105 | User not assigned | Fix the **group** that grants the app (birthright). Do not assign users directly |
+| Signature / certificate error in the app | The signing certificate expired, or the app trusts a different certificate | New certificate in Entra > make active > give the new **thumbprint** to the app's SSO settings. Rotate before expiry |
+| "User not found" in the app | NameID is not what the app looks users up by | Set the Unique User Identifier (Name ID) to user.userprincipalname or user.mail |
+
+## OIDC
+| Error | Meaning | Fix |
+|---|---|---|
+| AADSTS50011 | redirect_uri not registered | Add the exact redirect URI under Authentication |
+| AADSTS7000222 | Client secret expired | New client secret (max 24 months), put the new secret in the app, then delete the old one |
+| AADSTS7000215 | The app sends a secret Entra does not know | Give the app the secret **value**, not the secret ID |
+
+Read the ID token: **aud** must be the app's client ID, **iss** the tenant, **exp** in the future.
+`,
   'SoD-Matrix.csv': `RightA,RightB,Reason
 grp-payroll-submit,grp-payroll-approve,The same person must not create and approve a pay run
 grp-hr-managers,grp-finance-analysts,HR record write access combined with finance close is restricted
@@ -247,6 +319,15 @@ Open the IAM Coach to start a lab or a full shift.
   for (const [name, body] of Object.entries(SCRIPTS)) add(`${home}\\Documents\\Scripts\\${name}`, body, false);
   add(`${home}\\Documents\\Evidence\\README.txt`, 'Save your own notes and evidence here (Notepad > Save As). Everything in this range is simulated; label it that way in your portfolio.\n', false);
   return files;
+}
+
+/** Worlds created before a policy was added get it the first time a lab needs it. */
+export function ensurePolicyDocs(w: World): void {
+  const home = homeDir(w);
+  for (const [name, body] of Object.entries(POLICIES)) {
+    const path = `${home}\\Documents\\Policies\\${name}`;
+    if (!w.files.some((f) => f.path.toLowerCase() === path.toLowerCase())) w.files.push({ path, content: body, modified: nowIso(), readOnly: true });
+  }
 }
 
 export function writeFile(w: World, path: string, content: string): void {

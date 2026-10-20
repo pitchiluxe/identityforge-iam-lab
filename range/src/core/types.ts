@@ -164,6 +164,40 @@ export interface EntraApp {
   provisioning: 'SCIM' | 'None';
   /** SaaS app id this enterprise app provisions to. */
   saasId: string | null;
+  /** SAML or OIDC configuration, on both sides of the trust (see world/federation.ts). */
+  fed?: AppFederation;
+}
+
+export interface SamlCert { thumbprint: string; created: string; expires: string; active: boolean }
+export interface ClientSecret { id: string; hint: string; created: string; expires: string }
+
+/** Identity provider (Entra) side and service provider (the app's own admin page) side of one SSO trust. */
+export interface AppFederation {
+  protocol: 'SAML' | 'OIDC';
+  saml?: {
+    entityId: string;
+    replyUrls: string[];
+    signOnUrl: string;
+    nameIdSource: 'user.userprincipalname' | 'user.mail' | 'user.objectid' | 'user.employeeid';
+    nameIdFormat: 'emailAddress' | 'persistent' | 'unspecified';
+    claims: { name: string; source: string }[];
+    certs: SamlCert[];
+  };
+  oidc?: {
+    clientId: string;
+    redirectUris: string[];
+    secrets: ClientSecret[];
+    groupsClaim: boolean;
+  };
+  /** What the application itself is configured to send and accept. */
+  sp: {
+    entityId?: string;
+    acsUrl?: string;
+    expectsNameId?: 'upn' | 'email';
+    idpCertThumbprint?: string;
+    redirectUri?: string;
+    clientSecretId?: string;
+  };
 }
 
 export interface SyncError {
@@ -231,6 +265,8 @@ export interface SaasAccount {
   lastLogin: string | null;
   /** Who manages it: a provisioning connector, or a person by hand. */
   managedBy: 'SCIM (Okta)' | 'SCIM (Entra)' | 'Manual';
+  /** The employee ID the application stores, when it stores one (IGA correlates on it). */
+  employeeId?: string;
 }
 
 export interface SaasApp {
@@ -343,7 +379,7 @@ export interface VFile {
   deleted?: { from: string; at: string };
 }
 
-export type AuditSource = 'AD' | 'Entra ID' | 'Okta' | 'SaaS' | 'ServiceDesk' | 'HR' | 'Mail' | 'Sync';
+export type AuditSource = 'AD' | 'Entra ID' | 'Okta' | 'SaaS' | 'ServiceDesk' | 'HR' | 'Mail' | 'Sync' | 'IGA' | 'PAM';
 
 export interface AuditEvent {
   id: number;
@@ -388,7 +424,18 @@ export type CheckSpec =
   | { k: 'noSyncError'; sam: string }
   | { k: 'ticketNote'; ticket: string; anyOf: string[] }
   | { k: 'mailReported'; mail: string; value: boolean }
-  | { k: 'securityTicketRaised'; since: string; anyOf: string[] };
+  | { k: 'securityTicketRaised'; since: string; anyOf: string[] }
+  | { k: 'ssoWorks'; app: string; upn: string }
+  | { k: 'entraDirectAssignment'; app: string; upn: string; value: boolean }
+  | { k: 'igaAggregatedSince'; source: string; since: string }
+  | { k: 'igaCorrelation'; source: string; account: string; employeeId: string | null }
+  | { k: 'certSignedOff'; campaign: string }
+  | { k: 'pamSession'; account: string; since: string }
+  | { k: 'pamPasswordShown'; account: string; since: string; value: boolean }
+  | { k: 'pamRotatedSince'; account: string; since: string }
+  | { k: 'pamManaged'; account: string; value: boolean }
+  | { k: 'pamDependenciesInSync'; account: string }
+  | { k: 'pamRequestWithTicket'; account: string; since: string; ticket: string };
 
 export interface Check {
   id: string;
@@ -462,4 +509,115 @@ export interface World {
   audit: AuditEvent[];
   scenarios: ScenarioInstance[];
   counters: { ticket: number; audit: number; mail: number; scenario: number; signIn: number };
+  /** Identity governance platform, created on first use (world/iga.ts). */
+  iga?: Iga;
+  /** Privileged access vault, created on first use (world/pam.ts). */
+  pam?: Pam;
+}
+
+// ---------------------------------------------------------------- Identity governance (IGA)
+
+export interface IgaSource {
+  id: string;
+  name: string;
+  type: 'Authoritative (HR)' | 'Active Directory' | 'Application (connector)' | 'Delimited file (disconnected)';
+  /** sam of the source owner. */
+  owner: string | null;
+  lastAggregation: string;
+}
+
+/** An account as the IGA platform last saw it during aggregation. */
+export interface IgaAccount {
+  source: string;
+  nativeId: string;
+  displayName: string;
+  /** Employee ID read from the source, if it carries one. */
+  employeeId: string | null;
+  entitlements: string[];
+  disabled: boolean;
+}
+
+export interface CertItem {
+  id: string;
+  /** Employee ID of the identity. */
+  identity: string;
+  identityName: string;
+  account: string;
+  source: string;
+  entitlement: string;
+  /** sam of the reviewer. */
+  reviewer: string;
+  flags: string[];
+  decision: 'pending' | 'approve' | 'revoke';
+  decidedBy: string | null;
+  decidedAt: string | null;
+  comment: string;
+  remediation: 'none' | 'done' | 'manual-open' | 'manual-done';
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  type: 'Source Owner' | 'Manager' | 'Search';
+  status: 'Active' | 'Signed off';
+  created: string;
+  due: string;
+  description: string;
+  items: CertItem[];
+  signedOffBy: string | null;
+  signedOffAt: string | null;
+}
+
+export interface AccessException { id: string; employeeId: string; entitlement: string; approvedBy: string; expires: string; reason: string }
+
+export interface Iga {
+  sources: IgaSource[];
+  accounts: IgaAccount[];
+  /** Manual correlations, keyed "source/nativeId": an employee ID, or "" for "belongs to nobody". */
+  correlations: Record<string, string>;
+  campaigns: Campaign[];
+  exceptions: AccessException[];
+  sodPolicies: { id: string; name: string; left: string; right: string }[];
+}
+
+// ---------------------------------------------------------------- Privileged access (PAM vault)
+
+export interface PamSafe {
+  name: string;
+  description: string;
+  members: { member: string; role: 'Use' | 'Retrieve' | 'Approve' | 'Manage' }[];
+  dualControl: boolean;
+  requireTicket: boolean;
+  rotateOnCheckin: boolean;
+}
+
+export interface PamDependency { type: 'Windows Service' | 'Scheduled Task' | 'IIS Application Pool'; host: string; name: string; syncedVersion: number }
+
+export interface PamAccount {
+  id: string;
+  safe: string;
+  userName: string;
+  address: string;
+  platform: 'Windows Domain Account' | 'Windows Service Account' | 'Entra ID Cloud Account';
+  managed: boolean;
+  rotationDays: number;
+  lastRotated: string;
+  passwordVersion: number;
+  dependencies: PamDependency[];
+}
+
+export interface PamRequest { id: string; accountId: string; requester: string; reason: string; ticket: string; state: 'Pending' | 'Approved' | 'Rejected'; approver: string | null; time: string; decision: string }
+export interface PamSession { id: string; accountId: string; user: string; target: string; start: string; end: string | null; ticket: string }
+export interface PamEvent { id: number; time: string; user: string; action: string; accountId: string; detail: string }
+
+export interface Pam {
+  safes: PamSafe[];
+  accounts: PamAccount[];
+  requests: PamRequest[];
+  sessions: PamSession[];
+  events: PamEvent[];
+  /** Privileged accounts found by discovery that are not in the vault yet. */
+  discovered: { userName: string; address: string; reason: string }[];
+  /** What really runs as each account (the estate), whether or not the vault knows about it. */
+  usages: Record<string, { type: PamDependency['type']; host: string; name: string }[]>;
 }

@@ -1026,3 +1026,27 @@ body::before { content: ''; position: fixed; inset: 0; z-index: 2147483646; poin
 .ev-ov-sec p { margin: 0 6px 6px; max-width: 80ch; line-height: 1.45; }
 .ev-ov-table { margin: 0 0 6px; }
 .ev-ov-table tr.row { cursor: default; }
+
+/* ---- Governance, Vault and SSO portals */
+.sso-card, .vault-card { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--layer); display: grid; gap: 10px; }
+.sso-card h3, .vault-card h3 { margin: 0; font-size: 15px; }
+.sso-card h4 { margin: 4px 0 0; font-size: 13px; }
+.sso-card .field, .vault-card .field { display: grid; gap: 4px; }
+.sso-area { height: auto; min-height: 76px; padding: 8px 10px; font: 13px var(--mono); resize: vertical; width: 100%; }
+.sso-result { margin-top: 12px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--line); border-left: 4px solid var(--ok); background: var(--layer); }
+.sso-result.bad { border-left-color: var(--bad); }
+.sso-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sso-head .badge { margin-left: 0; }
+.sso-result p { margin: 8px 0 0; overflow-wrap: anywhere; }
+.sso-steps { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 3px; font-size: 13px; }
+.sso-steps li.ok::marker { color: var(--ok); }
+.sso-steps li.bad { color: var(--bad); font-weight: 600; }
+.sso-evidence { margin: 6px 0 0; max-height: 300px; overflow: auto; padding: 10px 12px; border-radius: 6px; background: #0f1720; color: #d7e3ee; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.vault-session { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--layer); }
+.vault-term { margin: 0; padding: 10px 12px; border-radius: 6px; background: #0b0f14; color: #9fe7c4; font: 12.5px/1.5 var(--mono); }
+.vault-secret { margin: 10px 0; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--ink); overflow-wrap: anywhere; }
+.vault-secret code { font-size: 14px; }
+.cert-bar { margin: 8px 0; }
+.cert-table { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.cert-table table { margin: 0; }
+.cert-table td .badge:first-child { margin-left: 0; }

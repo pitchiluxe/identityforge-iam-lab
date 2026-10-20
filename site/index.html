@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meridian IAM Range: practise hospital identity and access management</title>
-  <meta name="description" content="A free Windows workstation simulator for practising healthcare IAM: Active Directory, PowerShell, Entra ID, Okta and a ServiceDesk queue of joiners, leavers, lockouts and traps, graded after every change." />
+  <meta name="description" content="A free Windows workstation simulator for practising healthcare IAM: Active Directory, PowerShell, Entra ID, Okta, identity governance, a privileged access vault, SAML and OIDC troubleshooting, and a ServiceDesk queue of joiners, leavers, lockouts and traps, graded after every change." />
   <meta name="author" content="Erick Omari" />
   <meta name="theme-color" content="#071a2b" />
   <meta property="og:title" content="Meridian IAM Range" />
@@ -96,8 +96,8 @@
         <img src="/assets/workstation.webp" width="1440" height="900" alt="The Meridian IAM Range desktop: Active Directory Users and Computers open on the Nursing OU, with IAM Copilot tracking three running labs." />
       </figure>
       <ul class="facts" aria-label="At a glance">
-        <li><strong>17</strong> kinds of lab</li>
-        <li><strong>35</strong> variations, <strong>11</strong> traps</li>
+        <li><strong>23</strong> kinds of lab</li>
+        <li><strong>51</strong> variations, <strong>19</strong> traps</li>
         <li><strong>Graded</strong> after every change</li>
         <li><strong>Offline</strong>, free, open source</li>
       </ul>
@@ -121,6 +121,12 @@
             <strong>PeopleHub</strong><span>The HR source of truth. If HR has not recorded it, it has not happened.</span></button>
           <button role="tab" id="t-okta" aria-controls="p-view" aria-selected="false" data-img="/walkthrough/img/l4-okta.webp" data-alt="The Okta admin console with a user deactivated.">
             <strong>Entra ID and Okta</strong><span>Synced attributes, sessions, SCIM apps, and the one app that is manual.</span></button>
+          <button role="tab" id="t-iga" aria-controls="p-view" aria-selected="false" data-img="/assets/iga.webp" data-alt="The Identity Governance console: a certification campaign filtered to risk-flagged items, with Terminated, SoD and Outside role flags.">
+            <strong>Identity Governance</strong><span>SailPoint-style sources, aggregation, correlation and certification campaigns (Saviynt terms alongside).</span></button>
+          <button role="tab" id="t-vault" aria-controls="p-view" aria-selected="false" data-img="/assets/vault.webp" data-alt="The Privileged Access Vault: a service account with automatic management and its registered usages.">
+            <strong>Privileged Access Vault</strong><span>CyberArk-style safes, dual control, recorded sessions, password rotation and usages.</span></button>
+          <button role="tab" id="t-sso" aria-controls="p-view" aria-selected="false" data-img="/assets/sso.webp" data-alt="Test single sign-on in the Entra admin center, showing each step and the decoded SAML response.">
+            <strong>SAML and OIDC</strong><span>Entity ID, Reply URLs, NameID, signing certificates, client secrets, and a decoded SAML response or JWT.</span></button>
           <button role="tab" id="t-rdp" aria-controls="p-view" aria-selected="false" data-img="/walkthrough/img/j9-rdp-session.webp" data-alt="Remote Desktop signed in as the new user on a test workstation.">
             <strong>Remote Desktop</strong><span>Verify a sign-in as the user: lockouts, expired and must-change passwords.</span></button>
           <button role="tab" id="t-coach" aria-controls="p-view" aria-selected="false" data-img="/walkthrough/img/j1-coach.webp" data-alt="IAM Coach listing labs, difficulty and the career track.">
@@ -154,7 +160,7 @@
 
     <section class="block" id="labs" aria-labelledby="labs-h">
       <div class="block-head">
-        <h2 id="labs-h">17 kinds of lab, 35 variations, 11 of them traps</h2>
+        <h2 id="labs-h">23 kinds of lab, 51 variations, 19 of them traps</h2>
         <p>Each run draws new people, departments and evidence, so you cannot memorise the answer. <span class="trap-key">Amber</span> marks the variations where the obvious action is the wrong one.</p>
       </div>
       <div class="labs">
@@ -167,10 +173,15 @@
           <li>MFA reset for a new phone</li><li class="trap">MFA reset from a personal email</li><li>MFA fatigue</li><li>Impossible travel</li></ul></div>
         <div class="lab-group"><h3>Access and governance</h3><ul>
           <li>Fully approved access request</li><li class="trap">Manager approved, owner has not</li><li class="trap">Approved, but a toxic combination</li>
-          <li>Quarterly access review</li><li>Stale account cleanup</li><li>Orphaned accounts audit finding</li><li class="trap">SSO group membership lost</li><li>Direct app assignments found by audit</li></ul></div>
+          <li>Quarterly access review</li><li>Stale account cleanup</li><li>Orphaned accounts audit finding</li><li class="trap">SSO group membership lost</li><li>Direct app assignments found by audit</li>
+          <li>Uncorrelated accounts after aggregation</li><li class="trap">Same name, a former employee's ID</li><li>Certification campaign, 80+ items</li><li class="trap">Campaign due today, one Approve All button</li></ul></div>
         <div class="lab-group"><h3>Privilege and hybrid</h3><ul>
           <li class="trap">Executive impersonation from a look-alike domain</li><li class="trap">Request for permanent Domain Admin</li><li>Permanent Global Administrator found</li><li class="trap">Service account in Domain Admins</li>
-          <li>Conditional Access rollout</li><li>New starter in an unsynced OU</li><li>Name change not reaching Teams</li><li>InvalidSoftMatch against a cloud admin</li></ul></div>
+          <li>Conditional Access rollout</li><li>New starter in an unsynced OU</li><li>Name change not reaching Teams</li><li>InvalidSoftMatch against a cloud admin</li>
+          <li>Tier 0 change through the vault</li><li class="trap">Vendor wants a service account password</li><li class="trap">Onboard a service account without an outage</li><li>Break-glass used during an outage</li><li class="trap">Break-glass sign-in with no incident</li></ul></div>
+        <div class="lab-group"><h3>Federation and SSO</h3><ul>
+          <li class="trap">SAML signing certificate expired</li><li>AADSTS50011: reply URL</li><li>AADSTS700016: identifier not found</li><li>NameID the app cannot match</li>
+          <li class="trap">AADSTS50105 for one nurse</li><li>OIDC redirect URI mismatch</li><li class="trap">OIDC client secret expired</li></ul></div>
       </div>
     </section>
 

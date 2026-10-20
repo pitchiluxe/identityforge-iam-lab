@@ -7,6 +7,8 @@ import { fmt } from '../../core/time.ts';
 import { BREAK_GLASS } from '../../world/company.ts';
 import { ENTRA_ROLES, assignRole, deleteCaPolicy, deleteMfaMethod, removeRole, requireMfaReregistration, revokeSessions, saveCaPolicy, setCloudAccountEnabled, setRisk } from '../../world/cloud.ts';
 import { eventsFor } from '../../world/audit.ts';
+import { ensureFederation } from '../../world/federation.ts';
+import { entraAppPage } from './sso.ts';
 import { badge, button, field, h, table } from '../dom.ts';
 import { act, store } from '../store.ts';
 import { type Site, type SiteCtx, empty, kv, link, shell } from './common.ts';
@@ -128,11 +130,11 @@ export const entra: Site = {
       const groups = [...new Set(w.entra.users.flatMap((e) => e.groups))].sort();
       content = h('div', null, h('h2', null, 'Groups'), table(['Group', 'Members', 'Source'], groups.map((g) => [g, String(w.entra.users.filter((e) => !e.deleted && e.groups.includes(g)).length), w.ad.groups.some((a) => a.name === g) ? 'Windows Server AD' : 'Cloud'])));
     } else if (am) {
+      ensureFederation(w);
       const app = w.entra.apps.find((a) => a.id === am[1]);
-      content = !app ? empty('App not found.') : h('div', null, link('← Enterprise applications', () => ctx.go('/apps')), h('h2', null, app.name),
-        kv([['Single sign-on', app.sso], ['Assignment required', app.assignmentRequired ? 'Yes' : 'No'], ['Provisioning', app.provisioning === 'SCIM' ? 'Automatic (SCIM), runs after each sync' : 'None'], ['Assigned groups', app.assignedGroups.join(', ') || '—'], ['Direct user assignments', app.assignedUsers.join(', ') || '—']]),
-        app.saasId ? h('p', { class: 'muted' }, 'Provisioning logs are in SaaS apps > ', link(app.name, () => ctx.open(`https://apps.meridianhealth.test/${app.saasId}`))) : null);
+      content = !app ? empty('App not found.') : entraAppPage(ctx, app);
     } else if (p === '/apps') {
+      ensureFederation(w);
       content = h('div', null, h('h2', null, 'Enterprise applications'), table(['Name', 'SSO', 'Assignment', 'Provisioning'], w.entra.apps.map((a) => [a.name, a.sso, a.assignedGroups.join(', ') || 'All users', a.provisioning]), (i: number) => ctx.go(`/apps/${w.entra.apps[i]!.id}`)),
         h('p', { class: 'muted' }, 'Okta-federated apps (ImageVault, PayrollPro, ExpenseFlow) are managed in the Okta admin console.'));
     } else if (cm) content = caEditor(ctx, cm[1] === 'new' ? null : w.entra.caPolicies.find((c) => c.id === cm[1]) ?? null);

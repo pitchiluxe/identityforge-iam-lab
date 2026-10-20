@@ -14,12 +14,18 @@ import { joiner, leaver, mover } from './library/lifecycle.ts';
 import { compromised, lockout, mfaReset, passwordReset } from './library/auth.ts';
 import { accessRequest, accessReview, execEmail, orphanAccounts, ssoAccess, staleAccounts } from './library/governance.ts';
 import { caPolicy, hybridSync, serviceAccount, standingPrivilege } from './library/privileged.ts';
+import { certCampaign, igaCorrelation } from './library/identity-governance.ts';
+import { pamBreakGlass, pamOnboard, pamSession } from './library/vault.ts';
+import { ssoTroubleshoot } from './library/sso-federation.ts';
 
 export const TEMPLATES: readonly Template[] = [
   joiner, mover, leaver,
   passwordReset, lockout, mfaReset, compromised,
   accessRequest, accessReview, staleAccounts, orphanAccounts, ssoAccess, execEmail,
   standingPrivilege, serviceAccount, caPolicy, hybridSync,
+  igaCorrelation, certCampaign,
+  pamSession, pamOnboard, pamBreakGlass,
+  ssoTroubleshoot,
 ];
 
 export function templateById(id: string): Template | undefined {

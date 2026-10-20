@@ -1,6 +1,7 @@
 /**
  * PeopleHub (HR), webmail, the policy wiki and the SaaS admin consoles.
  */
+import { careChartSsoPanel } from './sso.ts';
 import { fmt, fmtDate } from '../../core/time.ts';
 import type { Worker } from '../../core/types.ts';
 import { workerName, reportPhishing, sendMail } from '../../world/itsm.ts';
@@ -157,7 +158,8 @@ export const saasAdmin: Site = {
           app.provisioning === 'Manual' ? h('select', { class: 'input slim', 'aria-label': `Role for ${a.login}`, onChange: (e: Event) => act((x) => setSaasRole(x, app.id, a.login, (e.target as HTMLSelectElement).value), 'Role changed') }, app.roles.map((r) => h('option', { value: r, selected: r === a.role }, r))) : a.role,
           badge(a.active ? 'Active' : 'Deactivated', a.active ? 'ok' : 'bad'), fmt(a.lastLogin), a.managedBy,
           button(a.active ? 'Deactivate' : 'Reactivate', () => act((x) => setSaasAccount(x, app.id, a.login, !a.active), `${a.login} ${a.active ? 'deactivated' : 'reactivated'} in ${app.name}`), 'btn slim'),
-        ])));
+        ])),
+        app.id === 'carechart' ? careChartSsoPanel(() => ctx.go(ctx.path)) : null);
     }
     return shell(this, nav, ctx, content, 'Admin consoles for apps behind SSO');
   },

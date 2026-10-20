@@ -10,6 +10,9 @@ import { nowIso } from '../core/time.ts';
 import { findUser } from '../world/directory.ts';
 import { activeRole, findOktaUser, inSyncScope, oktaHasApp } from '../world/cloud.ts';
 import { GROUPS_OU } from '../world/company.ts';
+import { hasAssignment, simulateSso } from '../world/federation.ts';
+import { ensureIga, identityOf } from '../world/iga.ts';
+import { ensurePam, usageHealth } from '../world/pam.ts';
 
 const since = (t: string | null | undefined, s: string): boolean => !!t && Date.parse(t) >= Date.parse(s);
 const sameSet = (a: string[], b: string[]): boolean => {
@@ -187,6 +190,62 @@ export function evaluate(w: World, spec: CheckSpec): { pass: boolean; detail: st
       const raised = w.tickets.find((t) => t.type === 'Security Incident' && t.scenarioId === null && since(t.opened, spec.since) &&
         spec.anyOf.some((k) => `${t.short}\n${t.description}\n${t.workNotes.map((n) => n.text).join('\n')}`.toLowerCase().includes(k.toLowerCase())));
       return ok(!!raised, raised ? `${raised.id} raised for Security Operations.` : `No Security Incident mentioning ${spec.anyOf.join(' / ')} was raised.`);
+    }
+    case 'ssoWorks': {
+      const r = simulateSso(w, spec.app, spec.upn);
+      return ok(r.ok, r.ok ? r.message : `${r.code}: ${r.message}`);
+    }
+    case 'entraDirectAssignment': {
+      const app = w.entra.apps.find((a) => a.id === spec.app);
+      const e = w.entra.users.find((x) => !x.deleted && x.upn.toLowerCase() === spec.upn.toLowerCase());
+      const direct = !!app && !!e && hasAssignment(w, { ...app, assignedGroups: [] }, e) === 'direct';
+      return ok(direct === spec.value, direct ? `Assigned directly to ${app?.name}.` : `No direct assignment to ${app?.name ?? spec.app}.`);
+    }
+    case 'igaAggregatedSince': {
+      const src = ensureIga(w).sources.find((x) => x.id === spec.source);
+      return ok(!!src && since(src.lastAggregation, spec.since), src ? `${src.name} last aggregated ${src.lastAggregation}.` : 'Unknown source.');
+    }
+    case 'igaCorrelation': {
+      const a = ensureIga(w).accounts.find((x) => x.source === spec.source && x.nativeId.toLowerCase() === spec.account.toLowerCase());
+      if (!a) return ok(false, `${spec.account} has not been aggregated from ${spec.source}.`);
+      const id = identityOf(w, a);
+      const who = id ? w.hr.workers.find((x) => x.employeeId === id) : null;
+      const shown = id === null ? 'uncorrelated' : id === '' ? 'marked as belonging to no identity' : `correlated to ${who ? `${who.first} ${who.last} ` : ''}(${id})`;
+      return ok((id ?? null) === spec.employeeId || (spec.employeeId === '' && id === ''), `${spec.account} is ${shown}.`);
+    }
+    case 'certSignedOff': {
+      const c = ensureIga(w).campaigns.find((x) => x.id === spec.campaign);
+      if (!c) return ok(false, `Campaign ${spec.campaign} not found.`);
+      const pending = c.items.filter((i) => i.decision === 'pending').length;
+      return ok(c.status === 'Signed off', c.status === 'Signed off' ? `Signed off by ${c.signedOffBy}.` : `${c.status}; ${pending} item(s) pending.`);
+    }
+    case 'pamSession': {
+      const pam = ensurePam(w);
+      const s2 = pam.sessions.find((x) => (x.accountId === spec.account) && since(x.start, spec.since));
+      return ok(!!s2, s2 ? `${s2.id}: ${s2.user} connected to ${s2.target} through a recorded session.` : 'No privileged session through the vault for this account.');
+    }
+    case 'pamPasswordShown': {
+      const shown = ensurePam(w).events.some((e) => e.accountId === spec.account && e.action === 'Show password' && since(e.time, spec.since));
+      return ok(shown === spec.value, shown ? 'The password was shown (recorded in the vault audit).' : 'The password was never shown.');
+    }
+    case 'pamRotatedSince': {
+      const a = ensurePam(w).accounts.find((x) => x.id === spec.account);
+      return ok(!!a && since(a.lastRotated, spec.since), a ? `Last changed ${a.lastRotated} (version ${a.passwordVersion}).` : 'Account is not in the vault.');
+    }
+    case 'pamManaged': {
+      const a = ensurePam(w).accounts.find((x) => x.id === spec.account);
+      const managed = !!a && a.managed;
+      return ok(managed === spec.value, a ? `In safe ${a.safe}; automatic management ${a.managed ? 'on' : 'off'}.` : 'Not in the vault.');
+    }
+    case 'pamDependenciesInSync': {
+      const a = ensurePam(w).accounts.find((x) => x.id === spec.account);
+      if (!a) return ok(false, 'Not in the vault.');
+      const broken = usageHealth(w, a.id).filter((u) => !u.ok);
+      return ok(!broken.length, broken.length ? `Out of sync, the service will fail to start: ${broken.map((u) => `${u.name} on ${u.host}${u.registered ? '' : ' (not registered as a usage)'}`).join(', ')}.` : 'Every usage has the current password.');
+    }
+    case 'pamRequestWithTicket': {
+      const r = ensurePam(w).requests.find((x) => x.accountId === spec.account && x.state === 'Approved' && x.ticket.toLowerCase() === spec.ticket.toLowerCase() && since(x.time, spec.since));
+      return ok(!!r, r ? `${r.id} approved by ${r.approver} for ${r.ticket}.` : `No approved access request referencing ${spec.ticket}.`);
     }
   }
 }
