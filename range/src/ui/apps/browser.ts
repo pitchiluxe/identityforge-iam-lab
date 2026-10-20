@@ -66,6 +66,46 @@ interface Tab {
   frame?: HTMLElement;
 }
 
+const frameAnswers = new Map<string, 'yes' | 'no' | 'unknown'>();
+
+/** Can this site be framed? Answered by /api/frame-check (the dev server, or the website's Vercel function). */
+async function frameCheck(url: string): Promise<'yes' | 'no' | 'unknown'> {
+  const host = parse(url).host;
+  const cached = frameAnswers.get(host);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`/api/frame-check?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return 'unknown';
+    const body = (await res.json()) as { embeddable?: boolean; unreachable?: boolean };
+    const answer = body.unreachable ? 'unknown' : body.embeddable ? 'yes' : 'no';
+    frameAnswers.set(host, answer);
+    return answer;
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** A real browser window for a site that refuses to be framed, sized like the in-app one. */
+function openWindow(url: string): void {
+  const w = Math.min(1280, screen.availWidth - 80);
+  const ht = Math.min(860, screen.availHeight - 80);
+  window.open(url, '_blank', `popup,width=${w},height=${ht},left=${Math.round((screen.availWidth - w) / 2)},top=${Math.round((screen.availHeight - ht) / 2)}`);
+}
+
+/** Chrome's own page for a site that refuses to be shown inside another page. */
+function refusedPage(url: string): HTMLElement {
+  const host = parse(url).host;
+  return h('div', { class: 'cr-err' },
+    h('div', { class: 'cr-err-icon mdl' }, ''),
+    h('h1', null, `${host} refused to connect.`),
+    h('p', null, `${host} does not allow other pages to display it. A web page cannot change that, so open it in its own window:`),
+    h('div', { class: 'row', style: 'margin:18px 0 8px' },
+      h('button', { class: 'btn primary', type: 'button', onClick: () => openWindow(url) }, `Open ${host} in a new window`)),
+    h('p', { class: 'muted' }, 'ERR_BLOCKED_BY_RESPONSE'),
+    h('p', { class: 'muted' }, 'The installed desktop app shows every website, including this one, inside this browser. ',
+      h('a', { href: 'https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest', target: '_blank', rel: 'noopener noreferrer' }, 'Get the desktop app')));
+}
+
 /** A real website (not one of the range's intranet sites). */
 function isWeb(url: string): boolean {
   const { site, host } = parse(url);
@@ -255,10 +295,21 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
           wv.addEventListener('did-navigate-in-page', (e) => { const ev = e as unknown as { url: string; isMainFrame: boolean }; if (ev.isMainFrame) onWebNavigate(t, ev.url); });
           view = h('div', { class: 'cr-webwrap' }, wv);
         } else {
-          const frame = h('iframe', { class: 'cr-web', src: t.url, title: t.url, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox' });
-          view = h('div', { class: 'cr-webwrap' },
-            h('div', { class: 'cr-webnote' }, h('span', { class: 'mdl' }, '\uE946'), h('span', null, 'Many sites refuse to load inside another page. If this stays blank, '), h('a', { href: t.url, target: '_blank', rel: 'noopener noreferrer' }, 'open it in a new browser tab'), h('span', null, ', or install the desktop app, which loads every site.')),
-            frame);
+          // A web page can only frame sites that allow it. Ask first, then
+          // either show the site or Chrome's own "refused to connect" page.
+          view = h('div', { class: 'cr-webwrap' }, h('div', { class: 'cr-loading' }, h('span', { class: 'cr-spinner' }), `Loading ${parse(t.url).host}...`));
+          const url = t.url;
+          const frameIt = (unknown: boolean): void => {
+            clear(view);
+            if (unknown) view.appendChild(h('div', { class: 'cr-webnote' }, h('span', { class: 'mdl' }, '\uE946'), h('span', null, 'If this stays blank, the site does not allow other pages to show it: '), h('button', { class: 'cr-linkbtn', type: 'button', onClick: () => openWindow(url) }, 'open it in a new window'), h('span', null, '.')));
+            view.appendChild(h('iframe', { class: 'cr-web', src: url, title: url, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox' }));
+          };
+          void frameCheck(url).then((r) => {
+            if (t.url !== url || t.frame !== view) return;
+            if (r === 'yes') frameIt(false);
+            else if (r === 'unknown') frameIt(true);
+            else { clear(view); view.appendChild(refusedPage(url)); }
+          });
         }
         view.dataset.src = t.url;
         t.frame = view;
