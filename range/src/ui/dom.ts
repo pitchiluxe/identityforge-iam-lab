@@ -45,8 +45,14 @@ export function button(label: string, onClick: () => void, cls = 'btn', title?: 
 let toastHost: HTMLElement | null = null;
 /** Settings > Notifications. Errors still show: they explain why an action failed. */
 export const toastPrefs = { muted: false };
+/** Set by ui/system.ts: records the notification and decides whether it pops up. */
+let toastHook: ((message: string, kind: 'ok' | 'err' | 'info') => boolean) | null = null;
+export function setToastHook(fn: (message: string, kind: 'ok' | 'err' | 'info') => boolean): void {
+  toastHook = fn;
+}
 export function toast(message: string, kind: 'ok' | 'err' | 'info' = 'info'): void {
-  if (toastPrefs.muted && kind !== 'err') return;
+  if (toastHook && !toastHook(message, kind)) return;
+  if (!toastHook && toastPrefs.muted && kind !== 'err') return;
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.appendChild(toastHost);

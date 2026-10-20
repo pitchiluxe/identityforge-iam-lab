@@ -6,10 +6,12 @@ import { startSchedulers } from './ui/store.ts';
 import { applyAppearance } from './ui/theme.ts';
 import { installContextMenus } from './ui/ctxmenu.ts';
 import { installUpdateWatcher } from './ui/updates.ts';
+import { installSystem } from './ui/system.ts';
 
 applyAppearance();
 installContextMenus();
 installUpdateWatcher();
+installSystem();
 const root = document.getElementById('app')!;
 lockScreen(root, () => {
   buildDesktop(root);

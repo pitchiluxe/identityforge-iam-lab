@@ -302,11 +302,12 @@ pre.desc { white-space: pre-wrap; background: var(--layer); border: 1px solid va
 .ev-act:disabled { color: #888; }
 
 /* ---------------------------------------------------------------- Windows PowerShell */
-.ps { height: 100%; display: grid; grid-template-rows: 1fr auto; background: #012456; color: #eeedf0; font: 14px/1.3 Consolas, 'Lucida Console', monospace; }
-.ps-out { overflow: auto; padding: 4px 6px 0; white-space: pre-wrap; word-break: break-word; }
-.ps-out::-webkit-scrollbar { width: 17px; }
-.ps-out::-webkit-scrollbar-track { background: #f0f0f0; }
-.ps-out::-webkit-scrollbar-thumb { background: #cdcdcd; border: 4px solid #f0f0f0; }
+/* As in a Windows console: one scroll area, the prompt follows the last line of output. */
+.ps { height: 100%; display: block; overflow-y: auto; background: #012456; color: #eeedf0; font: 14px/1.3 Consolas, 'Lucida Console', monospace; }
+.ps-out { padding: 4px 6px 0; white-space: pre-wrap; word-break: break-word; }
+.ps::-webkit-scrollbar { width: 17px; }
+.ps::-webkit-scrollbar-track { background: #f0f0f0; }
+.ps::-webkit-scrollbar-thumb { background: #cdcdcd; border: 4px solid #f0f0f0; }
 .ps-line.err { color: #ff0000; background: #000; display: table; }
 .ps-line.warn { color: #ffff00; background: #000; display: table; }
 .ps-line.host.green { color: #00ff00; }
@@ -314,7 +315,7 @@ pre.desc { white-space: pre-wrap; background: var(--layer); border: 1px solid va
 .ps-line.host.red { color: #ff0000; }
 .ps-line.host.cyan { color: #00ffff; }
 .ps-line.host.gray { color: #c0c0c0; }
-.ps-row { display: flex; padding: 0 6px 6px; }
+.ps-row { display: flex; padding: 0 6px 12px; }
 .ps-prompt { white-space: pre; }
 .ps-in { flex: 1; background: transparent; border: 0; color: #eeedf0; font: inherit; outline: none; caret-color: #eeedf0; padding: 0; }
 
@@ -389,13 +390,27 @@ pre.desc { white-space: pre-wrap; background: var(--layer); border: 1px solid va
 /* ---------------------------------------------------------------- IAM Coach, Career, Settings */
 .coach { display: grid; grid-template-rows: auto 1fr; height: 100%; }
 .launch { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); border-bottom: 1px solid var(--line); background: var(--layer); }
-.launch-col { padding: 12px 16px 16px; border-right: 1px solid var(--line); display: grid; align-content: start; gap: 8px; min-width: 0; }
+.launch-col { padding: 12px 16px 16px; border-right: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-width: 0; }
+.launch-col select.input, .launch-col input.input { width: 100%; max-width: 100%; }
+.launch-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.launch-col .row > .btn { flex: none; }
 .launch-col:last-child { border-right: 0; }
 .launch-col h3 { margin: 0; }
 .launch-col .input { flex: 1 1 140px; }
 .launch-col .row { flex-wrap: wrap; }
 .launch-col .row > * { min-width: 0; }
-.coach-main { display: grid; grid-template-columns: 270px 1fr; min-height: 0; }
+.coach-main { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 0; }
+.detail-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); min-height: 0; }
+.detail-wrap > .detail { min-width: 0; }
+.mentor { display: grid; grid-template-rows: auto 1fr auto auto; min-height: 0; border-left: 1px solid var(--line); background: var(--win-bg); }
+.mentor-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.mentor-status { flex: 1; font-size: 11.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mentor-status.on::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ok); }
+.mentor-log { overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.mentor-hello { padding: 12px; border-radius: 6px; background: var(--layer); border: 1px solid var(--line); font-size: 13px; }
+.mentor-hello p { margin: 6px 0 0; color: var(--ink-2); }
+.mentor .co-chips { flex-wrap: wrap; overflow: visible; }
+@media (max-width: 1100px) { .detail-wrap { grid-template-columns: 1fr; } .mentor { border-left: 0; border-top: 1px solid var(--line); min-height: 360px; } }
 .scn-list { border-right: 1px solid var(--line); overflow: auto; padding: 8px; background: var(--win-bg); }
 .scn-list h3 { margin: 6px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
 .scn { display: grid; gap: 3px; width: 100%; text-align: left; padding: 9px 12px; background: none; border: 0; border-radius: 4px; margin-bottom: 2px; cursor: default; color: var(--ink); position: relative; }

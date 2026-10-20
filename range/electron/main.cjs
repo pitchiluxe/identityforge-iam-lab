@@ -14,7 +14,7 @@
 // The renderer stays sandboxed with no Node access. Everything it needs
 // crosses preload.cjs as a named channel.
 
-const { app, BrowserWindow, ipcMain, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, net, protocol, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -139,10 +139,37 @@ ipcMain.on('env:sync', (event) => { event.returnValue = { desktop: true, version
 // Window
 // ---------------------------------------------------------------------------
 
+// Window size and position, remembered between launches like any Windows app.
+// The first launch opens at a comfortable size, centred, not maximised.
+const BOUNDS_FILE = () => path.join(app.getPath('userData'), 'window.json');
+
+function initialBounds() {
+  const area = screen.getPrimaryDisplay().workAreaSize;
+  const fallback = { width: Math.min(1366, Math.round(area.width * 0.82)), height: Math.min(860, Math.round(area.height * 0.85)) };
+  try {
+    const saved = JSON.parse(fs.readFileSync(BOUNDS_FILE(), 'utf8'));
+    const visible = screen.getAllDisplays().some((d) => saved.x >= d.bounds.x - 50 && saved.y >= d.bounds.y - 50 && saved.x < d.bounds.x + d.bounds.width - 100 && saved.y < d.bounds.y + d.bounds.height - 100);
+    if (visible && saved.width >= 1024 && saved.height >= 640) return saved;
+  } catch {
+    /* first launch or unreadable: use the default */
+  }
+  return fallback;
+}
+
+function saveBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    fs.writeFileSync(BOUNDS_FILE(), JSON.stringify({ ...mainWindow.getNormalBounds(), maximized: mainWindow.isMaximized() }));
+  } catch {
+    /* not fatal: the next launch uses the default size */
+  }
+}
+
 function createWindow() {
+  const bounds = initialBounds();
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...bounds,
+    center: bounds.x === undefined,
     minWidth: 1024,
     minHeight: 640,
     title: WINDOW_TITLE,
@@ -150,10 +177,11 @@ function createWindow() {
     autoHideMenuBar: true,
     show: false,
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, webviewTag: true },
   });
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.once('ready-to-show', () => { mainWindow.maximize(); mainWindow.show(); });
+  mainWindow.once('ready-to-show', () => { if (bounds.maximized) mainWindow.maximize(); mainWindow.show(); });
+  mainWindow.on('close', saveBounds);
   mainWindow.on('page-title-updated', (e) => { e.preventDefault(); mainWindow.setTitle(WINDOW_TITLE); });
 
   // Real web links (Microsoft Learn, the real portals) open in the user's own browser.
@@ -187,6 +215,24 @@ function createWindow() {
   }
   mainWindow.loadURL(`${SCHEME}://${HOST}/index.html`);
 }
+
+// Chrome inside the workstation shows real websites in <webview> tags. Each one
+// gets no preload and no Node, may only load http(s), and opens pop-ups in place.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-attach-webview', (e, prefs, params) => {
+    delete prefs.preload;
+    prefs.nodeIntegration = false;
+    prefs.contextIsolation = true;
+    prefs.sandbox = true;
+    if (!/^https?:\/\//i.test(params.src || '')) e.preventDefault();
+  });
+  if (contents.getType() === 'webview') {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) contents.loadURL(url);
+      return { action: 'deny' };
+    });
+  }
+});
 
 app.on('second-instance', () => {
   if (!mainWindow) return;

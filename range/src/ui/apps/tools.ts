@@ -67,7 +67,7 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
       if (echo) line(`PS ${sh.cwd}> ${cmd}`, 'echo');
       exec(cmd);
       setPrompt();
-      out.scrollTop = out.scrollHeight;
+      (out.parentElement ?? out).scrollTop = 1e9;
     },
   };
   setPrompt();
@@ -119,11 +119,11 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
       hist = -1;
       line(`${prompt.textContent}${cmd}`, 'echo');
       const full = pending ? `${pending}\n${cmd}` : cmd;
-      if (incomplete(full) && cmd.trim() !== '') { pending = full; setPrompt(); out.scrollTop = out.scrollHeight; return; }
+      if (incomplete(full) && cmd.trim() !== '') { pending = full; setPrompt(); (out.parentElement ?? out).scrollTop = 1e9; return; }
       pending = '';
       if (full.trim()) exec(full);
       setPrompt();
-      out.scrollTop = out.scrollHeight;
+      (out.parentElement ?? out).scrollTop = 1e9;
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       const hs = sh.history;
@@ -163,6 +163,11 @@ export function setPowerShellOpener(fn: (target: string) => void): void {
   openHook = fn;
 }
 
+/** Shells (PowerShell, Command Prompt) ask the desktop to open something: "kind:target". */
+export function openFromShell(target: string): void {
+  openHook(target);
+}
+
 export function powershellWindow(script?: string, cwd?: string): AppDef {
   return {
     id: script || cwd ? `powershell:${script ?? cwd}:${Date.now()}` : 'powershell',
@@ -181,49 +186,247 @@ export const powershellApp: AppDef = powershellWindow();
 
 // ------------------------------------------------------------------- Notepad
 
+export interface NotepadPrefs { wrap: boolean; status: boolean; zoom: number; font: string; size: number }
+const NP_DEFAULTS: NotepadPrefs = { wrap: true, status: true, zoom: 100, font: 'Consolas', size: 15 };
+const npPrefs = (): NotepadPrefs => ({ ...NP_DEFAULTS, ...(store.settings.notepad ?? {}) });
+
+/**
+ * Notepad, as in Windows 11: File (New, New window, Open, Save, Save as,
+ * Print, Close), Edit (Undo, Cut, Copy, Paste, Delete, Search with Bing,
+ * Find, Find next/previous, Replace, Go to, Select all, Time/Date, Font) and
+ * View (Zoom, Status bar, Word wrap), with the same shortcuts.
+ */
 export function notepadApp(path: string): AppDef {
-  const name = path ? path.split('\\').pop()! : 'Untitled.txt';
+  const startName = path ? path.split('\\').pop()! : 'Untitled.txt';
   return {
     id: `notepad:${path || Date.now()}`,
-    title: `${name} - Notepad`,
+    title: `${startName} - Notepad`,
     icon: 'notepad',
-    width: 780,
-    height: 560,
+    width: 820,
+    height: 580,
     mount(host, win) {
-      const f = store.world.files.find((x) => x.path === path);
-      const text = h('textarea', { class: 'np-text', spellcheck: 'false', wrap: 'soft', 'aria-label': 'Text editor' }, f?.content ?? '');
+      let current = path;
+      const file = (): World['files'][number] | undefined => store.world.files.find((x) => x.path === current && !x.deleted);
+      const text = h('textarea', { class: 'np-text', spellcheck: 'false', 'aria-label': 'Text editor' }, file()?.content ?? '');
       const status = h('div', { class: 'np-status' });
+      const findBar = h('div', { class: 'np-find', hidden: true });
+      const root = h('div', { class: 'np' });
       let dirty = false;
+      let lastFind = '';
+      const name = (): string => (current ? current.split('\\').pop()! : 'Untitled.txt');
+      const setTitle = (): void => win.setTitle(`${dirty ? '*' : ''}${name()} - Notepad`);
+      const prefs = (): NotepadPrefs => npPrefs();
+      const savePrefs = (patch: Partial<NotepadPrefs>): void => { store.settings.notepad = { ...prefs(), ...patch }; persist(); look(); };
+      const look = (): void => {
+        const p = prefs();
+        text.wrap = p.wrap ? 'soft' : 'off';
+        text.classList.toggle('nowrap', !p.wrap);
+        text.style.fontFamily = `'${p.font}', Consolas, monospace`;
+        text.style.fontSize = `${Math.round(p.size * p.zoom / 100)}px`;
+        status.hidden = !p.status;
+        pos();
+      };
       const pos = (): void => {
         const before = text.value.slice(0, text.selectionStart);
         const ln = before.split('\n').length;
         const col = before.length - before.lastIndexOf('\n');
         clear(status);
-        status.append(h('span', null, `Ln ${ln}, Col ${col}`), h('span', null, `${text.value.length} characters`), h('span', null, '100%'), h('span', null, 'Windows (CRLF)'), h('span', null, 'UTF-8'));
+        const sel = text.selectionEnd - text.selectionStart;
+        status.append(h('span', null, `Ln ${ln}, Col ${col}${sel ? `  (${sel} selected)` : ''}`), h('span', null, `${text.value.length} characters`), h('span', null, `${prefs().zoom}%`), h('span', null, 'Windows (CRLF)'), h('span', null, 'UTF-8'));
       };
-      const save = (target = path): void => {
-        if (!target || (f?.readOnly && target === path)) return saveAs();
-        if (act((w) => writeFile(w, target, text.value))) { dirty = false; win.setTitle(`${target.split('\\').pop()} - Notepad`); }
+      const save = (target = current): void => {
+        const f = file();
+        if (!target || (f?.readOnly && target === current)) return saveAs();
+        if (act((w) => writeFile(w, target, text.value))) { current = target; dirty = false; setTitle(); toast(`Saved ${name()}`, 'ok'); }
       };
       const saveAs = (): void => {
-        const box = h('input', { class: 'w-input', value: `${homeDir(store.world)}\\Documents\\Evidence\\${name}`, 'aria-label': 'File name' });
-        const bar = h('div', { class: 'np-saveas' }, h('span', null, f?.readOnly ? 'This file is read-only. Save a copy as:' : 'Save as:'), box,
-          h('button', { class: 'w-btn accent', type: 'button', onClick: () => { save(box.value); bar.remove(); } }, 'Save'),
+        root.querySelector('.np-saveas')?.remove();
+        const folders = ['Desktop', 'Documents', 'Documents\\Evidence', 'Documents\\Scripts', 'Downloads'].map((d) => `${homeDir(store.world)}\\${d}`);
+        const folder = h('select', { class: 'w-input', 'aria-label': 'Folder' }, folders.map((d) => h('option', { value: d, selected: current ? current.startsWith(d + '\\') : d.endsWith('Documents') }, d.replace(homeDir(store.world) + '\\', ''))));
+        const box = h('input', { class: 'w-input', value: name(), 'aria-label': 'File name' });
+        const type = h('select', { class: 'w-input', 'aria-label': 'Save as type' }, [['', 'All files (*.*)'], ['.txt', 'Text Documents (*.txt)'], ['.bat', 'Batch file (*.bat)'], ['.ps1', 'PowerShell script (*.ps1)'], ['.csv', 'CSV (*.csv)'], ['.md', 'Markdown (*.md)']].map(([v, l]) => h('option', { value: v }, l)));
+        const doSave = (): void => {
+          let n = box.value.trim();
+          if (!n) return;
+          if (type.value && !n.toLowerCase().endsWith(type.value)) n = n.replace(/\.[^.]*$/, '') + type.value;
+          save(`${folder.value}\\${n}`);
+          bar.remove();
+        };
+        box.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); if (e.key === 'Escape') bar.remove(); });
+        const bar = h('div', { class: 'np-saveas' }, h('span', null, file()?.readOnly ? 'This file is read-only. Save a copy:' : 'Save as:'), folder, box, type,
+          h('button', { class: 'w-btn accent', type: 'button', onClick: doSave }, 'Save'),
           h('button', { class: 'w-btn', type: 'button', onClick: () => bar.remove() }, 'Cancel'));
-        host.querySelector('.np')!.insertBefore(bar, text);
+        root.insertBefore(bar, text);
         box.focus();
+        box.setSelectionRange(0, Math.max(0, box.value.lastIndexOf('.')));
       };
-      text.addEventListener('input', () => { if (!dirty) { dirty = true; win.setTitle(`*${name} - Notepad`); } pos(); });
-      text.addEventListener('click', pos);
-      text.addEventListener('keyup', pos);
-      text.addEventListener('keydown', (e) => { if (e.key === 's' && e.ctrlKey) { e.preventDefault(); if (e.shiftKey) saveAs(); else save(); } });
-      if (f?.readOnly) text.setAttribute('readonly', '');
-      host.appendChild(h('div', { class: 'np' },
-        h('div', { class: 'np-menu' },
-          h('button', { type: 'button', onClick: () => save() }, 'File'), h('button', { type: 'button', onClick: () => saveAs() }, 'Save as'),
-          h('button', { type: 'button', onClick: () => { text.focus(); text.select(); } }, 'Edit'), h('button', { type: 'button', onClick: () => text.classList.toggle('nowrap') }, 'View')),
-        text, status));
-      pos();
+      const openDialog = (): void => {
+        root.querySelector('.np-saveas')?.remove();
+        const files = store.world.files.filter((f) => !f.deleted && /\.(txt|md|csv|ps1|bat|cmd|log|json|ini)$/i.test(f.path)).sort((a, b) => a.path.localeCompare(b.path));
+        const bar = h('div', { class: 'np-saveas np-open' }, h('span', null, 'Open:'),
+          h('select', { class: 'w-input', 'aria-label': 'File', onChange: (e: Event) => { openApp(notepadApp((e.target as HTMLSelectElement).value)); bar.remove(); } },
+            h('option', { value: '' }, 'Choose a file...'), files.map((f) => h('option', { value: f.path }, f.path.replace(homeDir(store.world) + '\\', '')))),
+          h('button', { class: 'w-btn', type: 'button', onClick: () => bar.remove() }, 'Cancel'));
+        root.insertBefore(bar, text);
+      };
+      const find = (forward = true, needle = lastFind, matchCase = false): boolean => {
+        if (!needle) return false;
+        lastFind = needle;
+        const hay = matchCase ? text.value : text.value.toLowerCase();
+        const n = matchCase ? needle : needle.toLowerCase();
+        let i = forward ? hay.indexOf(n, text.selectionEnd) : hay.lastIndexOf(n, Math.max(0, text.selectionStart - 1));
+        if (i < 0) i = forward ? hay.indexOf(n) : hay.lastIndexOf(n);
+        if (i < 0) { toast(`Cannot find "${needle}"`); return false; }
+        text.focus();
+        text.setSelectionRange(i, i + needle.length);
+        const lineHeight = parseFloat(getComputedStyle(text).lineHeight) || 20;
+        text.scrollTop = Math.max(0, text.value.slice(0, i).split('\n').length * lineHeight - text.clientHeight / 2);
+        pos();
+        return true;
+      };
+      const openFind = (replace: boolean): void => {
+        findBar.hidden = false;
+        clear(findBar);
+        const sel = text.value.slice(text.selectionStart, text.selectionEnd);
+        const q = h('input', { class: 'w-input', placeholder: 'Find', value: sel || lastFind, 'aria-label': 'Find' });
+        const r = h('input', { class: 'w-input', placeholder: 'Replace', 'aria-label': 'Replace', hidden: !replace });
+        const mc = h('input', { type: 'checkbox', 'aria-label': 'Match case' });
+        const replaceOne = (): void => {
+          const s = text.value.slice(text.selectionStart, text.selectionEnd);
+          if (s && (mc.checked ? s === q.value : s.toLowerCase() === q.value.toLowerCase())) { text.setRangeText(r.value, text.selectionStart, text.selectionEnd, 'end'); dirty = true; setTitle(); }
+          find(true, q.value, mc.checked);
+        };
+        const replaceAll = (): void => {
+          if (!q.value) return;
+          const re = new RegExp(q.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), mc.checked ? 'g' : 'gi');
+          const count = (text.value.match(re) ?? []).length;
+          text.value = text.value.replace(re, r.value);
+          dirty = true;
+          setTitle();
+          toast(`Replaced ${count} occurrence${count === 1 ? '' : 's'}`);
+        };
+        q.addEventListener('keydown', (e) => { if (e.key === 'Enter') find(!e.shiftKey, q.value, mc.checked); if (e.key === 'Escape') { findBar.hidden = true; text.focus(); } });
+        findBar.append(
+          h('button', { class: 'np-ib', type: 'button', title: replace ? 'Hide replace' : 'Show replace', onClick: () => openFind(!replace) }, replace ? '' : ''),
+          h('div', { class: 'np-find-fields' }, q, r),
+          h('button', { class: 'np-ib', type: 'button', title: 'Find previous (Shift+F3)', onClick: () => find(false, q.value, mc.checked) }, ''),
+          h('button', { class: 'np-ib', type: 'button', title: 'Find next (F3)', onClick: () => find(true, q.value, mc.checked) }, ''),
+          h('label', { class: 'np-mc' }, mc, 'Match case'),
+          ...(replace ? [h('button', { class: 'w-btn', type: 'button', onClick: replaceOne }, 'Replace'), h('button', { class: 'w-btn', type: 'button', onClick: replaceAll }, 'Replace all')] : []),
+          h('button', { class: 'np-ib', type: 'button', title: 'Close', onClick: () => { findBar.hidden = true; text.focus(); } }, ''));
+        q.focus();
+        q.select();
+      };
+      const goTo = (): void => {
+        const lines = text.value.split('\n');
+        const v = window.prompt(`Go to line (1 - ${lines.length})`, String(text.value.slice(0, text.selectionStart).split('\n').length));
+        const n = Number(v);
+        if (!v || !Number.isInteger(n) || n < 1 || n > lines.length) { if (v) toast('The line number is beyond the total number of lines'); return; }
+        const at = lines.slice(0, n - 1).reduce((a, l) => a + l.length + 1, 0);
+        text.focus();
+        text.setSelectionRange(at, at);
+        pos();
+      };
+      const insertDate = (): void => {
+        const d = new Date();
+        text.setRangeText(`${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} ${d.toLocaleDateString('en-US')}`, text.selectionStart, text.selectionEnd, 'end');
+        dirty = true;
+        setTitle();
+        pos();
+      };
+      const fontDialog = (): void => {
+        const p = prefs();
+        const fam = h('select', { class: 'w-input', 'aria-label': 'Font' }, ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Arial', 'Calibri'].map((f) => h('option', { value: f, selected: f === p.font }, f)));
+        const size = h('select', { class: 'w-input', 'aria-label': 'Size' }, [10, 11, 12, 14, 15, 16, 18, 20, 24].map((s) => h('option', { value: String(s), selected: s === p.size }, String(s))));
+        root.querySelector('.np-saveas')?.remove();
+        const bar = h('div', { class: 'np-saveas' }, h('span', null, 'Font:'), fam, h('span', null, 'Size:'), size,
+          h('button', { class: 'w-btn accent', type: 'button', onClick: () => { savePrefs({ font: fam.value, size: Number(size.value) }); bar.remove(); } }, 'OK'),
+          h('button', { class: 'w-btn', type: 'button', onClick: () => bar.remove() }, 'Cancel'));
+        root.insertBefore(bar, text);
+      };
+      const zoom = (d: number): void => savePrefs({ zoom: d === 0 ? 100 : Math.max(10, Math.min(500, prefs().zoom + d)) });
+      const cmdOn = (fn: () => void) => (): void => { text.focus(); fn(); };
+      const clip = (kind: 'cut' | 'copy' | 'paste' | 'delete'): void => {
+        text.focus();
+        const sel = text.value.slice(text.selectionStart, text.selectionEnd);
+        if (kind === 'copy' || kind === 'cut') void navigator.clipboard?.writeText(sel).catch(() => undefined);
+        if (kind === 'cut' || kind === 'delete') { text.setRangeText('', text.selectionStart, text.selectionEnd, 'end'); dirty = true; setTitle(); }
+        if (kind === 'paste') navigator.clipboard?.readText().then((t) => { text.setRangeText(t, text.selectionStart, text.selectionEnd, 'end'); dirty = true; setTitle(); pos(); }).catch(() => document.execCommand('paste'));
+        pos();
+      };
+      const menus: Record<string, () => MenuEntry[]> = {
+        File: () => [
+          { label: 'New tab', shortcut: 'Ctrl+T', icon: '', onClick: () => openApp(notepadApp(''), undefined, false) },
+          { label: 'New window', shortcut: 'Ctrl+Shift+N', icon: '', onClick: () => openApp(notepadApp(''), undefined, false) },
+          { label: 'Open', shortcut: 'Ctrl+O', icon: '', onClick: openDialog },
+          { label: 'Save', shortcut: 'Ctrl+S', icon: '', onClick: () => save() },
+          { label: 'Save as', shortcut: 'Ctrl+Shift+S', icon: '', onClick: saveAs },
+          '-',
+          { label: 'Print', shortcut: 'Ctrl+P', icon: '', onClick: () => window.print() },
+          '-',
+          { label: 'Close window', shortcut: 'Ctrl+Shift+W', onClick: () => win.close() },
+          { label: 'Exit', onClick: () => win.close() },
+        ],
+        Edit: () => [
+          { label: 'Undo', shortcut: 'Ctrl+Z', icon: '', onClick: cmdOn(() => document.execCommand('undo')) },
+          '-',
+          { label: 'Cut', shortcut: 'Ctrl+X', icon: '', onClick: () => clip('cut') },
+          { label: 'Copy', shortcut: 'Ctrl+C', icon: '', onClick: () => clip('copy') },
+          { label: 'Paste', shortcut: 'Ctrl+V', icon: '', onClick: () => clip('paste') },
+          { label: 'Delete', shortcut: 'Del', icon: '', onClick: () => clip('delete') },
+          '-',
+          { label: 'Search with Bing', shortcut: 'Ctrl+E', icon: '', onClick: () => { const q = text.value.slice(text.selectionStart, text.selectionEnd) || lastFind; if (q) openFromShell(`url:https://www.bing.com/search?q=${encodeURIComponent(q)}`); } },
+          { label: 'Find', shortcut: 'Ctrl+F', icon: '', onClick: () => openFind(false) },
+          { label: 'Find next', shortcut: 'F3', onClick: () => find(true) },
+          { label: 'Find previous', shortcut: 'Shift+F3', onClick: () => find(false) },
+          { label: 'Replace', shortcut: 'Ctrl+H', icon: '', onClick: () => openFind(true) },
+          { label: 'Go to', shortcut: 'Ctrl+G', onClick: goTo },
+          '-',
+          { label: 'Select all', shortcut: 'Ctrl+A', icon: '', onClick: cmdOn(() => text.select()) },
+          { label: 'Time/Date', shortcut: 'F5', icon: '', onClick: insertDate },
+          '-',
+          { label: 'Font', icon: '', onClick: fontDialog },
+        ],
+        View: () => [
+          { label: 'Zoom', icon: '', submenu: [{ label: 'Zoom in', shortcut: 'Ctrl+Plus', onClick: () => zoom(10) }, { label: 'Zoom out', shortcut: 'Ctrl+Minus', onClick: () => zoom(-10) }, { label: 'Restore default zoom', shortcut: 'Ctrl+0', onClick: () => zoom(0) }] },
+          { label: 'Status bar', checked: prefs().status, onClick: () => savePrefs({ status: !prefs().status }) },
+          { label: 'Word wrap', checked: prefs().wrap, onClick: () => savePrefs({ wrap: !prefs().wrap }) },
+        ],
+      };
+      text.addEventListener('input', () => { if (!dirty) { dirty = true; setTitle(); } pos(); });
+      for (const ev of ['click', 'keyup', 'select']) text.addEventListener(ev, pos);
+      root.addEventListener('keydown', (e) => {
+        const k = (e.key ?? "").toLowerCase();
+        let handled = true;
+        if (e.ctrlKey && e.shiftKey && k === 's') saveAs();
+        else if (e.ctrlKey && e.shiftKey && k === 'n') openApp(notepadApp(''), undefined, false);
+        else if (e.ctrlKey && e.shiftKey && k === 'w') win.close();
+        else if (e.ctrlKey && k === 's') save();
+        else if (e.ctrlKey && (k === 'n' || k === 't')) openApp(notepadApp(''), undefined, false);
+        else if (e.ctrlKey && k === 'o') openDialog();
+        else if (e.ctrlKey && k === 'p') window.print();
+        else if (e.ctrlKey && k === 'f') openFind(false);
+        else if (e.ctrlKey && k === 'h') openFind(true);
+        else if (e.ctrlKey && k === 'g') goTo();
+        else if (e.ctrlKey && k === 'e') { const item = menus.Edit!().find((m) => m !== '-' && m.label === 'Search with Bing'); if (item && item !== '-') item.onClick?.(); }
+        else if (e.key === 'F3') find(!e.shiftKey);
+        else if (e.key === 'F5') insertDate();
+        else if (e.ctrlKey && (k === '=' || k === '+')) zoom(10);
+        else if (e.ctrlKey && k === '-') zoom(-10);
+        else if (e.ctrlKey && k === '0') zoom(0);
+        else handled = false;
+        if (handled) { e.preventDefault(); e.stopPropagation(); }
+      });
+      text.addEventListener('wheel', (e) => { if (e.ctrlKey) { e.preventDefault(); zoom(e.deltaY < 0 ? 10 : -10); } }, { passive: false });
+      if (file()?.readOnly) text.setAttribute('readonly', '');
+      root.append(
+        h('div', { class: 'np-menu', role: 'menubar' }, Object.keys(menus).map((m) => h('button', { type: 'button', role: 'menuitem', onClick: (e: MouseEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); showMenu(r.left, r.bottom + 2, menus[m]!()); } }, m)),
+          h('span', { class: 'np-spacer' }),
+          h('button', { type: 'button', class: 'np-ib', title: 'Settings: font, word wrap, status bar', 'aria-label': 'Settings', onClick: (e: MouseEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); showMenu(r.right - 220, r.bottom + 2, [...menus.View!(), '-', { label: 'Font', onClick: fontDialog }]); } }, '')),
+        findBar, text, status);
+      host.appendChild(root);
+      look();
+      setTimeout(() => text.focus(), 0);
     },
   };
 }
@@ -252,6 +455,11 @@ export function fileMenu(path: string, startRename: () => void): MenuEntry[] {
     ...(isScript ? [
       { label: 'Run with PowerShell', icon: '\uE756', onClick: () => openFile(path, 'run') },
       { label: 'Edit', icon: '\uE70F', onClick: () => openFile(path, 'edit') },
+    ] as MenuEntry[] : []),
+    ...(/\.(bat|cmd)$/i.test(path) ? [
+      { label: 'Run', icon: '\uE768', onClick: () => openFile(path, 'run') },
+      { label: 'Run as administrator', icon: '\uE83D', onClick: () => openFile(path, 'run') },
+      { label: 'Edit', icon: '\uE70F', onClick: () => openFile(path, 'notepad') },
     ] as MenuEntry[] : []),
     { label: 'Open with', icon: '\uE7AC', submenu: [
       { label: 'Notepad', icon: '\uE70B', onClick: () => openFile(path, 'notepad') },
@@ -289,6 +497,7 @@ export function propertiesDialog(path: string): void {
 export function newMenu(dir: string, after: (path: string) => void): MenuEntry {
   return { label: 'New', icon: '\uE710', submenu: [
     { label: 'Text Document', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Text Document', '.txt'); })) after(p); } },
+    { label: 'Windows Batch File', icon: '\uE756', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Batch File', '.bat', '@echo off\r\nrem Write your commands here, then double-click the file to run it.\r\necho Hello from %COMPUTERNAME%\r\nwhoami\r\npause\r\n'); })) after(p); } },
     { label: 'Windows PowerShell Script', icon: '\uE756', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Script', '.ps1', '# Write your script here, then double-click the file to run it.\nWrite-Host "Hello from $env:COMPUTERNAME"\n'); })) after(p); } },
     { label: 'CSV File', icon: '\uE8A5', onClick: () => { let p = ''; if (act((w) => { p = newFile(w, dir, 'New Data', '.csv', 'EmployeeID,FirstName,LastName,Department\n'); })) after(p); } },
   ] };

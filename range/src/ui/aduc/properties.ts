@@ -632,7 +632,7 @@ export function userProperties(aduc: Aduc, u: User, initialTab = 'General'): voi
       const rows = (): Row[] => {
         const out: Row[] = [{ key: 'primary', name: 'Domain Users', folder: `${DOMAIN}/Users` }];
         for (const g of aduc.dir.listGroups()) {
-          if (!g.memberIds.includes(u.id) || removeGroups.has(g.id)) continue;
+          if (g.name === 'Domain Users' || !g.memberIds.includes(u.id) || removeGroups.has(g.id)) continue; // the primary group is listed once, above
           out.push({ key: g.id, name: g.name, folder: canonicalOf(homeOf(g), aduc.dir) });
         }
         for (const a of addGroups) out.push({ key: a.key, name: a.name, folder: a.group ? canonicalOf(homeOf(a.group), aduc.dir) : `${DOMAIN}/Users`, obj: a });

@@ -9,6 +9,8 @@
 import { clear, h, toast } from '../dom.ts';
 import { persist, store } from '../store.ts';
 import { appIcon } from '../icons.ts';
+import { isDesktop } from '../updates.ts';
+import { sys } from '../system.ts';
 import { type MenuEntry, showMenu } from '../ctxmenu.ts';
 import type { AppDef, WinHandle } from '../wm.ts';
 import { onOpenArg, openApp } from '../wm.ts';
@@ -58,6 +60,16 @@ interface Tab {
   fwd: string[];
   pinned: boolean;
   zoom: number;
+  /** Title reported by a real website. */
+  title?: string;
+  /** The live view of a real website, kept so switching tabs does not reload it. */
+  frame?: HTMLElement;
+}
+
+/** A real website (not one of the range's intranet sites). */
+function isWeb(url: string): boolean {
+  const { site, host } = parse(url);
+  return !site && /^https?:\/\//i.test(url) && !!host && !/\.(test|example|invalid|local)$/i.test(host);
 }
 
 const CHROME_TITLES: Record<string, string> = { newtab: 'New Tab', history: 'History', downloads: 'Downloads', bookmarks: 'Bookmarks', settings: 'Settings', version: 'About Chrome' };
@@ -97,7 +109,7 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
       let findText = '';
       let finding = false;
       const strip = h('div', { class: 'cr-tabs', role: 'tablist' });
-      const omni = h('input', { class: 'cr-omni', spellcheck: 'false', placeholder: 'Search the intranet or type a URL', 'aria-label': 'Address and search bar' });
+      const omni = h('input', { class: 'cr-omni', spellcheck: 'false', autocomplete: 'off', placeholder: 'Search the intranet or type a URL', 'aria-label': 'Address and search bar' });
       const star = h('button', { class: 'cr-ib cr-star', type: 'button', title: 'Bookmark this tab (Ctrl+D)', 'aria-label': 'Bookmark this tab' });
       const bar = h('div', { class: 'cr-bookmarks' });
       const view = h('div', { class: 'cr-view' });
@@ -110,6 +122,7 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
         const t = tab();
         if (push && t.url !== url) { t.back.push(t.url); t.fwd = []; }
         t.url = url;
+        t.title = undefined;
         if (!incognito && url !== 'chrome://newtab') { data.history.unshift({ url, title: titleOf(url), time: new Date().toISOString() }); data.history.splice(500); persist(); }
         draw();
       };
@@ -123,6 +136,7 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
       };
       const closeTab = (i: number): void => {
         if (tabs.length === 1) return win.close();
+        tabs[i]!.frame?.remove();
         tabs.splice(i, 1);
         if (active >= i) active = Math.max(0, active - 1);
         draw();
@@ -209,11 +223,62 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
           hits.length
             ? hits.slice(0, 30).map((r) => h('div', { class: 'cr-result' }, h('span', { class: 'cr-url' }, r.url), anchor(r.title, r.url), h('p', null, r.snippet)))
             : h('p', null, 'No intranet pages matched.'),
-          h('p', null, h('a', { href: `https://www.google.com/search?q=${encodeURIComponent(q)}`, target: '_blank', rel: 'noopener noreferrer' }, `Search the web for "${q}" in your own browser`)));
+          h('div', { class: 'cr-websearch' }, h('strong', null, 'Search the web'),
+            anchor(`Google: ${q}`, `https://www.google.com/search?q=${encodeURIComponent(q)}`),
+            anchor(`Bing: ${q}`, `https://www.bing.com/search?q=${encodeURIComponent(q)}`),
+            anchor(`DuckDuckGo: ${q}`, `https://duckduckgo.com/?q=${encodeURIComponent(q)}`),
+            anchor(`Microsoft Learn: ${q}`, `https://learn.microsoft.com/search/?terms=${encodeURIComponent(q)}`)));
+      }
+
+      /**
+       * A real website. The installed app shows it in a <webview>, which can
+       * load any site. A web browser can only frame sites that allow it, so
+       * the web edition says so and offers a real tab.
+       */
+      function webPage(t: Tab): HTMLElement {
+        if (sys().airplane || !navigator.onLine) {
+          return h('div', { class: 'cr-err' }, h('div', { class: 'cr-err-icon mdl' }, '\uE871'), h('h1', null, 'No internet'),
+            h('p', null, sys().airplane ? 'Airplane mode is on. Turn it off in Quick Settings or Settings > Network & internet.' : 'Check the network cables, modem and router.'),
+            h('p', { class: 'muted' }, 'ERR_INTERNET_DISCONNECTED'), h('button', { class: 'btn primary', type: 'button', onClick: () => draw() }, 'Reload'));
+        }
+        if (t.frame && t.frame.dataset.src === t.url) return t.frame;
+        t.frame?.remove();
+        let view: HTMLElement;
+        if (isDesktop) {
+          const wv = document.createElement('webview') as HTMLElement & { getURL?: () => string; reload?: () => void };
+          wv.setAttribute('src', t.url);
+          wv.setAttribute('partition', incognito ? 'web-incognito' : 'persist:web');
+          wv.setAttribute('allowpopups', '');
+          wv.className = 'cr-web';
+          wv.addEventListener('page-title-updated', (e) => { t.title = (e as unknown as { title: string }).title; drawChrome(); });
+          wv.addEventListener('did-navigate', (e) => onWebNavigate(t, (e as unknown as { url: string }).url));
+          wv.addEventListener('did-navigate-in-page', (e) => { const ev = e as unknown as { url: string; isMainFrame: boolean }; if (ev.isMainFrame) onWebNavigate(t, ev.url); });
+          view = h('div', { class: 'cr-webwrap' }, wv);
+        } else {
+          const frame = h('iframe', { class: 'cr-web', src: t.url, title: t.url, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox' });
+          view = h('div', { class: 'cr-webwrap' },
+            h('div', { class: 'cr-webnote' }, h('span', { class: 'mdl' }, '\uE946'), h('span', null, 'Many sites refuse to load inside another page. If this stays blank, '), h('a', { href: t.url, target: '_blank', rel: 'noopener noreferrer' }, 'open it in a new browser tab'), h('span', null, ', or install the desktop app, which loads every site.')),
+            frame);
+        }
+        view.dataset.src = t.url;
+        t.frame = view;
+        return view;
+      }
+
+      /** The page navigated itself (a link inside a real site): record it without reloading. */
+      function onWebNavigate(t: Tab, url: string): void {
+        if (!url || url === t.url) return;
+        t.back.push(t.url);
+        t.fwd = [];
+        t.url = url;
+        if (t.frame) t.frame.dataset.src = url;
+        if (!incognito) { data.history.unshift({ url, title: t.title ?? titleOf(url), time: new Date().toISOString() }); data.history.splice(500); persist(); }
+        drawChrome();
       }
 
       function page(): HTMLElement {
         const t = tab();
+        if (isWeb(t.url)) return webPage(t);
         if (t.url.startsWith('chrome://')) return chromePage(t.url);
         if (t.url.startsWith('search:')) return searchPage(decodeURIComponent(t.url.slice(7)));
         const { site, path, host: hst } = parse(t.url);
@@ -301,11 +366,17 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
       }
 
       function draw(): void {
+        drawChrome();
+        drawPage();
+      }
+
+      /** Tabs, omnibox, bookmarks bar and title: everything except the page. */
+      function drawChrome(): void {
         const t = tab();
         if (document.activeElement !== omni) omni.value = t.url === 'chrome://newtab' ? '' : t.url.startsWith('search:') ? decodeURIComponent(t.url.slice(7)) : t.url;
         star.textContent = bookmarked() ? '' : '';
         star.classList.toggle('on', bookmarked());
-        win.setTitle(`${titleOf(t.url)} - Google Chrome${incognito ? ' (Incognito)' : ''}`);
+        win.setTitle(`${t.title && isWeb(t.url) ? t.title : titleOf(t.url)} - Google Chrome${incognito ? ' (Incognito)' : ''}`);
         clear(strip);
         tabs.forEach((x, i) => {
           strip.appendChild(h('div', {
@@ -314,7 +385,7 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
             onContextmenu: (e: MouseEvent) => tabMenu(e, i),
           },
           favicon(x.url),
-          x.pinned ? null : h('span', { class: 'cr-tab-title' }, titleOf(x.url)),
+          x.pinned ? null : h('span', { class: 'cr-tab-title' }, x.title && isWeb(x.url) ? x.title : titleOf(x.url)),
           x.pinned ? null : h('button', { class: 'cr-tab-x', type: 'button', 'aria-label': 'Close tab', onMousedown: (e: MouseEvent) => e.stopPropagation(), onClick: (e: Event) => { e.stopPropagation(); closeTab(i); } }, '')));
         });
         strip.appendChild(h('button', { class: 'cr-newtab', type: 'button', title: 'New tab (Ctrl+T)', 'aria-label': 'New tab', onClick: () => newTab() }, ''));
@@ -327,25 +398,38 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
         for (const b of data.bookmarks) bar.appendChild(h('button', { class: 'cr-bm', type: 'button', title: b.title, onClick: () => navigate(b.url) }, favicon(b.url), b.title.slice(0, 24)));
         bar.appendChild(h('button', { class: 'cr-bm folder', type: 'button', onClick: (e: MouseEvent) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          showMenu(r.left, r.bottom + 2, REAL_PORTALS.map(([label, href]): MenuEntry => ({ label, icon: '', onClick: () => { window.open(href, '_blank', 'noopener,noreferrer'); } })));
+          showMenu(r.left, r.bottom + 2, REAL_PORTALS.map(([label, href]): MenuEntry => ({ label, icon: '', onClick: () => newTab(href, active + 1) })));
         } }, h('span', { class: 'mdl' }, ''), 'Real portals'));
         zoomBadge.hidden = t.zoom === 100;
         zoomBadge.textContent = t.zoom > 100 ? '' : '';
         zoomBadge.title = `Zoom: ${t.zoom}% (click to reset)`;
+      }
+
+      /**
+       * The page. Real websites keep their live view for the life of the tab
+       * (hidden when another tab is showing): detaching a webview reloads it.
+       */
+      function drawPage(): void {
+        const t = tab();
         const scroller = view.querySelector('.site-content, .cr-page');
         const keep = scroller ? scroller.scrollTop : 0;
         const prevUrl = view.dataset.url;
-        clear(view);
+        for (const el of [...view.children]) if (!(el as HTMLElement).classList.contains('cr-webwrap')) el.remove();
         const content = page();
         content.style.zoom = String(t.zoom / 100);
-        view.appendChild(content);
+        for (const el of view.querySelectorAll<HTMLElement>(':scope > .cr-webwrap')) el.hidden = el !== content;
+        if (content.parentElement !== view) view.appendChild(content);
         view.dataset.url = t.url;
         const next = view.querySelector('.site-content, .cr-page');
         if (next && prevUrl === t.url) next.scrollTop = keep;
         drawFind();
       }
 
-      omni.addEventListener('focus', () => setTimeout(() => omni.select(), 0));
+      // Select the address on the first click, as Chrome does, without eating what is typed next.
+      let selectOnUp = false;
+      omni.addEventListener('mousedown', () => { selectOnUp = document.activeElement !== omni; });
+      omni.addEventListener('mouseup', (e) => { if (selectOnUp && omni.selectionStart === omni.selectionEnd) { e.preventDefault(); omni.select(); } selectOnUp = false; });
+      omni.addEventListener('focus', () => omni.select());
       omni.addEventListener('blur', () => draw());
       omni.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { const v = omni.value; omni.blur(); go(v); }
@@ -404,7 +488,7 @@ export function chromeWindow(initial?: string, incognito = false): AppDef {
       const onKey = (e: KeyboardEvent): void => {
         if (!winEl?.classList.contains('active') || !winEl.isConnected) return;
         if (document.querySelector('.cm, .mm-shield, .copilot:not([hidden]):focus-within')) return;
-        const k = e.key.toLowerCase();
+        const k = (e.key ?? "").toLowerCase();
         const ctrl = e.ctrlKey || e.metaKey;
         let handled = true;
         if (ctrl && e.shiftKey && k === 'n') openApp(chromeWindow('chrome://newtab', true), undefined, false);

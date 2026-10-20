@@ -893,14 +893,14 @@ export function renderActiveDirectoryWindow(body: HTMLElement, conductor: VmServ
       e.preventDefault();
       const p = parentKey(selectedNode, conductor.dir);
       if (p) navigate(p);
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    } else if ((e.ctrlKey || e.metaKey) && (e.key ?? "").toLowerCase() === 'a') {
       e.preventDefault();
       selectedKeys = new Set(rows.map((r) => r.key));
       paintSelection();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+    } else if ((e.ctrlKey || e.metaKey) && (e.key ?? "").toLowerCase() === 'x') {
       e.preventDefault();
       cut(sel);
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    } else if ((e.ctrlKey || e.metaKey) && (e.key ?? "").toLowerCase() === 'v') {
       e.preventDefault();
       paste(selectedNode);
     } else if (e.key === 'F5') {

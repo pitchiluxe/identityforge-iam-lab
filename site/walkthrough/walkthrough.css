@@ -1,0 +1,31 @@
+.walk { padding: 0 max(16px, calc(50% - 600px)); }
+.walk-intro { padding: 56px 0 24px; }
+.walk-intro h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.08; font-weight: 800; letter-spacing: -0.03em; max-width: 18ch; }
+.walk-intro > p { margin: 16px 0 28px; color: var(--ink-2); max-width: 64ch; }
+.walk-toc { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; counter-reset: lab; }
+.walk-toc li { counter-increment: lab; }
+.walk-toc a { display: grid; gap: 6px; height: 100%; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); text-decoration: none; }
+.walk-toc a::before { content: 'Lab ' counter(lab); font-size: 13px; color: var(--scrub); font-weight: 600; }
+.walk-toc a:hover { border-color: var(--scrub); }
+.walk-toc span { color: var(--ink-2); font-size: 14.5px; }
+.lab { padding-top: 72px; }
+.lab h2 { font-size: clamp(24px, 2.6vw, 32px); line-height: 1.15; font-weight: 800; max-width: 30ch; margin-bottom: 28px; }
+.walk-steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 40px; }
+.walk-steps > li { counter-increment: step; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr); gap: 32px; align-items: start; }
+.walk-steps > li > div { position: relative; padding-left: 52px; }
+.walk-steps > li > div::before { content: counter(step); position: absolute; left: 0; top: -2px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--scrub); color: var(--scrub); font-weight: 600; font-size: 15px; }
+.walk-steps > li.warn > div::before { border-color: var(--amber); color: var(--amber); }
+.walk-steps h3 { font-size: 18px; margin-bottom: 6px; }
+.walk-steps p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+.walk-steps figure { margin: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(15, 30, 44, 0.12); box-shadow: 0 16px 40px rgba(11, 34, 54, 0.18); background: #000; }
+.walk-steps figure img { width: 100%; height: auto; }
+.walk-steps > li.warn figure { border-color: var(--amber); }
+.walk-end { margin: 88px 0 0; padding: 40px; border-radius: 14px; background: var(--night); color: var(--night-ink); }
+.walk-end h2 { font-size: 30px; font-weight: 800; }
+.walk-end p { color: var(--night-ink-2); margin: 10px 0 22px; }
+.btn-quiet-dark { color: var(--night-ink); border: 1px solid rgba(232, 240, 246, 0.28); }
+.btn-quiet-dark:hover { color: #fff; border-color: rgba(232, 240, 246, 0.6); }
+@media (max-width: 900px) {
+  .walk-toc { grid-template-columns: 1fr; }
+  .walk-steps > li { grid-template-columns: 1fr; gap: 14px; }
+}

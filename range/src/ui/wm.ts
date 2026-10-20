@@ -138,7 +138,10 @@ export function openApp(app: AppDef, arg?: string, single = true): void {
   const titleSlot = h('div', { class: 'win-slot', hidden: !app.customTitlebar });
   const body = h('div', { class: 'win-body' });
   const btn = (label: string, glyphChar: string, cls: string, fn: () => void): HTMLButtonElement =>
-    h('button', { class: `cap ${cls}`, type: 'button', title: label, 'aria-label': label, onClick: (e: Event) => { e.stopPropagation(); fn(); } }, glyphChar);
+    h('button', { class: `cap ${cls}`, type: 'button', title: label, 'aria-label': label, tabIndex: -1,
+      // Caption buttons never take focus from the app, as on Windows: the next key goes to the app.
+      onMousedown: (e: Event) => e.preventDefault(),
+      onClick: (e: Event) => { e.stopPropagation(); fn(); } }, glyphChar);
   const el = h('section', { class: 'win', role: 'dialog', 'aria-label': app.title },
     h('header', { class: 'win-bar' },
       app.customTitlebar ? null : h('span', { class: 'win-icon' }, appIcon(app.icon, 16)), titleEl, titleSlot,

@@ -239,7 +239,7 @@ export function runCapability(w: World, capId: string, a: Record<string, string>
       createUser(w, {
         sam: a.SamAccountName ?? '', givenName: a.GivenName ?? first ?? '', surname: a.Surname ?? rest.join(' '), displayName: a.Name,
         ou: ou(a.Path) ?? BUILTIN_OU, department: a.Department, title: a.Title,
-        enabled: false, passwordSet: !!a.AccountPassword, mustChangePassword: a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon),
+        enabled: false, passwordSet: !!a.AccountPassword, password: a.AccountPassword || undefined, mustChangePassword: a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon),
       });
       // The New Object - User wizard enables the account unless "Account is disabled" was ticked.
       if (a.AccountPassword) setEnabled(w, a.SamAccountName!, true);
@@ -260,7 +260,7 @@ export function runCapability(w: World, capId: string, a: Record<string, string>
     case 'password.reset': {
       const v = validatePassword(a.NewPassword ?? '');
       if (!v.ok) throw new AdError(`The password does not meet the length, complexity, or history requirement of the domain. ${v.reason}`);
-      resetPassword(w, a.Identity!, { mustChange: a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon) });
+      resetPassword(w, a.Identity!, { mustChange: a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon), password: a.NewPassword ?? null });
       return 'Password reset';
     }
     case 'group.addMember': addMember(w, a.Group!, a.Identity!); return 'Added';

@@ -32,6 +32,9 @@ export class ExitSignal { code: number; constructor(c: number) { this.code = c; 
 export interface PsFunction { name: string; params: Param[]; body: Stmt[] }
 
 export class SecureStringValue {
+  /** The text, when the range knows it (ConvertTo-SecureString). Null when typed through Read-Host. */
+  plain: string | null;
+  constructor(plain: string | null = null) { this.plain = plain; }
   toString(): string { return 'System.Security.SecureString'; }
 }
 

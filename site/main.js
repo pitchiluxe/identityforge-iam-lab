@@ -99,7 +99,9 @@ async function story() {
   }
 }
 
-if (reduced) {
+if (!graph) {
+  /* pages without the hero animation */
+} else if (reduced) {
   for (const id of EDGES) { document.getElementById(id).classList.add('on'); resFor(id).classList.add('on'); }
   line('4720', 'A user account was created: nowusu');
   line('4728', 'Member added: role-nursing-rn and 5 more groups');

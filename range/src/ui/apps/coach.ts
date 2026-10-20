@@ -9,7 +9,8 @@ import { DEPARTMENTS } from '../../world/company.ts';
 import { deliverMail } from '../../world/itsm.ts';
 import { TEMPLATES, abandonScenario, checkScenario, startScenario, startShift, takeHint, templateById } from '../../scenarios/engine.ts';
 import { type ChatMessage, backdropProblems, chat, coachSystemPrompt, designScenario, gradeInterview, rewordTicket } from '../../ai/ollama.ts';
-import { badge, button, clear, h, toast } from '../dom.ts';
+import { badge, button, clear, h, markdown, toast } from '../dom.ts';
+import { appIcon } from '../icons.ts';
 import { act, persist, store } from '../store.ts';
 import { ai } from '../aiState.ts';
 import type { AppDef } from '../wm.ts';
@@ -50,8 +51,8 @@ export const coachApp: AppDef = {
   id: 'coach',
   title: 'IAM Coach',
   icon: 'coach',
-  width: 1040,
-  height: 700,
+  width: 1260,
+  height: 760,
   mount(host) {
     let selected: string | null = store.world.scenarios.filter((s) => s.status === 'active').at(-1)?.id ?? null;
     let busy = '';
@@ -115,7 +116,7 @@ export const coachApp: AppDef = {
       return h('section', { class: 'launch' },
         h('div', { class: 'launch-col' },
           h('h3', null, 'One ticket'),
-          h('div', { class: 'row wrap' }, tplSel, twistSel, deptSel),
+          tplSel, h('div', { class: 'launch-pair' }, twistSel, deptSel),
           h('div', { class: 'row' },
             button('Start this lab', () => start(() => startScenario(store.world, { templateId: tpl || undefined, twist: twist || undefined, department: (dept || undefined) as Department | undefined, maxDifficulty: difficulty }), 'Lab started. The ticket is in ServiceDesk.'), 'btn primary'),
             diffSel)),
@@ -144,29 +145,60 @@ export const coachApp: AppDef = {
       const done = s.status !== 'active';
       const answer = h('textarea', { class: 'input', rows: '4', placeholder: 'Answer as you would in an interview: what, in what order, and why.', 'aria-label': 'Interview answer' }, store.interviewAnswers[s.id] ?? '');
       const msgs = chats.get(s.id) ?? [];
-      const ask = h('input', { class: 'input', placeholder: ai.status === 'online' ? 'Ask your mentor about this ticket' : 'Start Ollama to chat with a mentor', 'aria-label': 'Ask the coach', disabled: ai.status !== 'online' });
-      const log = h('div', { class: 'chat', 'data-keep-scroll': '' }, msgs.filter((m) => m.role !== 'system').map((m) => h('div', { class: `msg ${m.role}` }, m.content)));
-      const send = async (): Promise<void> => {
-        const model = ai.model;
-        if (!model || !ask.value.trim()) return;
+      const online = ai.status === 'online' && !!ai.model;
+      const ask = h('textarea', { class: 'co-input', rows: 1, placeholder: 'Ask your mentor about this lab...', 'aria-label': 'Ask the mentor' });
+      const bubble = (m: ChatMessage): HTMLElement => m.role === 'user'
+        ? h('div', { class: 'co-msg me' }, h('div', { class: 'co-bubble' }, m.content))
+        : h('div', { class: 'co-msg ai' }, h('div', { class: 'co-bubble' }, m.content ? markdown(m.content) : h('span', { class: 'co-typing' }, h('i'), h('i'), h('i'))));
+      const log = h('div', { class: 'mentor-log', 'data-keep-scroll': '' },
+        msgs.length ? msgs.filter((m) => m.role !== 'system').map(bubble)
+          : h('div', { class: 'mentor-hello' }, h('strong', null, 'Your mentor for this lab'), h('p', null, online ? `Answering with ${ai.model} on your computer. Ask what to check first, which policy applies, or how to word your work note.` : 'Ollama is not answering, so answers come from the lab checks and hints. Start Ollama and run "ollama pull llama3.2" for full chat.')));
+      const offline = (): string => {
+        const r = s.result;
+        const next = r?.results.find((x) => x.critical && !x.pass) ?? r?.results.find((x) => !x.pass);
+        return [
+          'Ollama is not answering, so here is what the lab itself can tell you.',
+          '',
+          r ? `Last Check my work: ${r.score}% of checks.${next ? ` Focus next: **${next.label}**.` : ''}` : 'Run **Check my work** once to see which checks still fail.',
+          s.hintsUsed < s.hints.length ? `Take hint ${s.hintsUsed + 1} of ${s.hints.length} if you are stuck.` : 'You have seen every hint; the debrief appears when you give up or pass.',
+          '',
+          'Start Ollama (`ollama serve`) and run `ollama pull llama3.2` for full mentor chat.',
+        ].join('\n');
+      };
+      const send = async (text?: string): Promise<void> => {
+        const q = (text ?? ask.value).trim();
+        if (!q) return;
         const tickets = s.ticketIds.map((id) => store.world.tickets.find((t) => t.id === id)!).filter(Boolean);
         const history = chats.get(s.id) ?? [];
-        history.push({ role: 'user', content: ask.value.trim() });
+        history.push({ role: 'user', content: q });
         const reply: ChatMessage = { role: 'assistant', content: '' };
         history.push(reply);
         chats.set(s.id, history);
         ask.value = '';
         draw();
-        const bubble = host.querySelector('.chat .msg.assistant:last-child') as HTMLElement | null;
+        const model = ai.model;
+        if (ai.status !== 'online' || !model) { reply.content = offline(); draw(); return; }
         try {
-          await chat(model, [{ role: 'system', content: coachSystemPrompt(store.world, s, tickets) }, ...history.slice(0, -1)], { onToken: (tk) => { reply.content += tk; if (bubble) bubble.textContent = reply.content; } });
+          await chat(model, [{ role: 'system', content: coachSystemPrompt(store.world, s, tickets) }, ...history.slice(0, -1)], { onToken: (tk) => {
+            reply.content += tk;
+            // Looked up per token: a background redraw replaces the bubble.
+            const el = host.querySelector('.mentor-log .co-msg.ai:last-child .co-bubble') as HTMLElement | null;
+            if (el) { el.textContent = reply.content; el.closest('.mentor-log')!.scrollTop = 1e9; }
+          } });
+          if (!reply.content.trim()) reply.content = 'The model returned nothing. Ask again.';
         } catch (e) {
-          reply.content = `The model did not answer (${e instanceof Error ? e.message : e}).`;
+          reply.content = `The model did not answer (${e instanceof Error ? e.message : e}).\n\n${offline()}`;
         }
         draw();
       };
-      ask.addEventListener('keydown', (e) => { if (e.key === 'Enter') void send(); });
-      return h('section', { class: 'detail' },
+      const mentor = h('aside', { class: 'mentor', 'aria-label': 'Mentor chat' },
+        h('div', { class: 'mentor-head' }, appIcon('copilot', 20), h('strong', null, 'Mentor'), h('span', { class: `mentor-status ${online ? 'on' : ''}` }, online ? ai.model! : 'Offline: answers from the checks'),
+          msgs.length ? h('button', { class: 'co-ib', type: 'button', title: 'Clear conversation', onClick: () => { chats.delete(s.id); draw(); } }, '\uE74D') : null),
+        log,
+        h('div', { class: 'co-chips' }, ['What should I check first?', 'Which policy applies?', 'Review my work so far', 'Draft my work note'].map((c) => h('button', { class: 'co-chip', type: 'button', onClick: () => void send(c) }, c))),
+        h('div', { class: 'co-compose' }, ask, h('button', { class: 'co-send', type: 'button', title: 'Send (Enter)', 'aria-label': 'Send', onClick: () => void send() }, '\uE724')));
+      ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } });
+      return h('div', { class: 'detail-wrap' }, h('section', { class: 'detail' },
         h('div', { class: 'row-between' },
           h('div', null, h('h2', null, s.title), h('p', { class: 'muted' }, `${s.category}, difficulty ${s.difficulty} of 3. Started ${fmt(s.started)}.${s.designedBy ? ` Designed with ${s.designedBy}.` : ''}`)),
           stamp(s)),
@@ -202,8 +234,8 @@ export const coachApp: AppDef = {
               draw();
             }, 'btn primary') : null,
             button('Show the reference answer', () => { feedback.set(s.id, `Reference answer: ${s.interview.modelAnswer}`); draw(); }, 'btn ghost')),
-          feedback.get(s.id) ? h('pre', { class: 'desc' }, feedback.get(s.id)!) : null) : null,
-        h('div', { class: 'stack' }, h('h3', null, 'Mentor'), log, h('div', { class: 'row' }, ask, button('Ask', () => void send(), 'btn', undefined))));
+          feedback.get(s.id) ? h('pre', { class: 'desc' }, feedback.get(s.id)!) : null) : null),
+        mentor);
     }
 
     function draw(): void {
@@ -222,7 +254,7 @@ export const coachApp: AppDef = {
             h('h3', null, `In progress (${active.length})`), active.length ? active.map(item) : h('p', { class: 'muted' }, 'Nothing open. Start a lab or a shift above.'),
             recent.length ? [h('h3', null, 'Recent'), recent.map(item)] : null),
           sel ? detail(sel) : h('section', { class: 'detail' }, h('h2', null, 'Your first shift'), h('p', null, 'Start a lab above. The work arrives as a ticket in ServiceDesk (browser bookmark) or as an email. Read the policies, use ADUC, PowerShell and the admin portals, write work notes, resolve the ticket, then come back and check your work.')))));
-      const chatEl = host.querySelector('.chat');
+      const chatEl = host.querySelector('.mentor-log');
       if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
     }
     draw();

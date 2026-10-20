@@ -30,6 +30,12 @@ export interface AdUser {
   pwdLastSet: string;
   mustChangePassword: boolean;
   passwordNeverExpires: boolean;
+  /**
+   * The current password. Real AD keeps only a hash; the range keeps the text
+   * so a sign-in (Remote Desktop) can be tested. Null when nobody in the
+   * range knows it (seeded accounts, or a reset typed through Read-Host).
+   */
+  labPassword?: string | null;
   lastLogon: string | null;
   accountExpires: string | null;
   description: string;

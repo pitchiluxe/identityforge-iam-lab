@@ -5,6 +5,9 @@
 import { openApp } from './wm.ts';
 import { notepadApp, powershellWindow, explorerApp, eventViewerApp, setPowerShellOpener, setFileOpener } from './apps/tools.ts';
 import { iseApp } from './apps/ise.ts';
+import { batchWindow, terminalApp, terminalWindow } from './apps/terminal.ts';
+import { rdpApp } from './apps/rdp.ts';
+import { sys } from './system.ts';
 import { browserApp, chromeWindow } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
 import { settingsApp } from './apps/settings.ts';
@@ -15,14 +18,21 @@ export type OpenMode = 'open' | 'edit' | 'notepad' | 'run';
 /** Double-click behaviour. .ps1 files run (the lab's choice); Edit opens the ISE. */
 export function openFile(path: string, mode: OpenMode = 'open'): void {
   const isScript = /\.ps1$/i.test(path);
-  if (isScript && (mode === 'open' || mode === 'run')) return openApp(powershellWindow(path), undefined, false);
-  if (isScript && mode === 'edit') return openApp(iseApp(path), path);
+  const isBatch = /\.(bat|cmd)$/i.test(path);
+  // Settings > Apps > Default apps decides what a double-click does.
+  const action = mode === 'open' ? (isScript ? sys().ps1Action : isBatch ? sys().batAction : 'open') : mode;
+  if (isScript && action === 'run') return openApp(powershellWindow(path), undefined, false);
+  if (isScript && action === 'edit') return openApp(iseApp(path), path);
+  if (isBatch && action === 'run') return openApp(batchWindow(path), undefined, false);
   openApp(notepadApp(path));
 }
 
 export function openProgram(name: string): void {
   const n = name.toLowerCase();
   if (n === 'notepad') return openApp(notepadApp(''));
+  if (n === 'wt' || n === 'terminal') return openApp(terminalApp, undefined, false);
+  if (n === 'cmd' || n === 'cmd.exe') return openApp(terminalWindow({ profile: 'cmd' }), undefined, false);
+  if (n === 'mstsc' || n === 'mstsc.exe') return openApp(rdpApp);
   if (n === 'powershell') return openApp(powershellWindow(), undefined, false);
   if (n === 'powershell_ise' || n === 'ise') return openApp(iseApp());
   if (n === 'explorer') return openApp(explorerApp);

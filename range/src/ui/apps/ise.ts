@@ -149,9 +149,9 @@ export function iseApp(path?: string): AppDef {
       host.addEventListener('keydown', (e) => {
         if (e.key === 'F5') { e.preventDefault(); runScript(); }
         else if (e.key === 'F8') { e.preventDefault(); runSelection(); }
-        else if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
-        else if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); open(); }
-        else if (e.ctrlKey && e.key.toLowerCase() === 'o') { e.preventDefault(); openDialog(); }
+        else if (e.ctrlKey && (e.key ?? "").toLowerCase() === 's') { e.preventDefault(); save(); }
+        else if (e.ctrlKey && (e.key ?? "").toLowerCase() === 'n') { e.preventDefault(); open(); }
+        else if (e.ctrlKey && (e.key ?? "").toLowerCase() === 'o') { e.preventDefault(); openDialog(); }
       });
       const tb = (glyphCh: string, title: string, fn: () => void, cls = ''): HTMLButtonElement => h('button', { class: `ise-tb ${cls}`, type: 'button', title, 'aria-label': title, onClick: fn }, glyphCh);
       host.appendChild(h('div', { class: 'ise' },

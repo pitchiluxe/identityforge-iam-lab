@@ -7,7 +7,9 @@
  * menu.
  */
 import { deleteFile, homeDir, renameFile } from '../world/docs.ts';
-import { h, clear, toastPrefs } from './dom.ts';
+import { h, clear } from './dom.ts';
+import { DEFAULT_SIGN_IN_PASSWORD, avatar, fmtDate, fmtTime, onSysChange, playSound, setLockHook, signInPassword, sys, unreadNotifications } from './system.ts';
+import { aiTitle, closeFlyout, toggleCalendar, toggleHiddenIcons, toggleQuickSettings, trayVolumeIcon } from './taskbar.ts';
 import { act, persist, store, subscribe } from './store.ts';
 import { ai } from './aiState.ts';
 import { appIcon, glyph, fileGlyph, type AppIcon } from './icons.ts';
@@ -18,6 +20,8 @@ import { browserApp } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
 import { eventViewerApp, explorerApp, fileMenu, newMenu, notepadApp, powershellApp, powershellWindow, setTerminalOpener } from './apps/tools.ts';
 import { iseApp } from './apps/ise.ts';
+import { terminalApp, terminalWindow } from './apps/terminal.ts';
+import { rdpApp } from './apps/rdp.ts';
 import { coachApp, setUrlOpener } from './apps/coach.ts';
 import { careerApp } from './apps/career.ts';
 import { setAppearance, setMousePropertiesOpener, settingsApp } from './apps/settings.ts';
@@ -29,11 +33,10 @@ import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, powershellApp, ise, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, careerApp];
-const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'powershell', 'coach'];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, careerApp];
+const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
-const pad = (n: number): string => String(n).padStart(2, '0');
 const desktopDir = (): string => `${homeDir(store.world)}\\Desktop`;
 
 function pinnedApps(): AppDef[] {
@@ -49,7 +52,7 @@ function togglePin(app: AppDef): void {
 }
 
 function clockText(d: Date): string {
-  return appearance().clock24 ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return fmtTime(d, { h24: appearance().clock24 });
 }
 
 // ------------------------------------------------------------------- lock screen and sign-in
@@ -82,8 +85,8 @@ export function lockScreen(root: HTMLElement, done: () => void): void {
     const date = h('div', { class: 'lk-date' });
     const tick = (): void => {
       const d = new Date();
-      time.textContent = appearance().clock24 ? `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      date.textContent = d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+      time.textContent = fmtTime(d, { seconds: true, h24: appearance().clock24 });
+      date.textContent = fmtDate(d, 'full');
     };
     tick();
     timer = window.setInterval(tick, 1000);
@@ -94,7 +97,6 @@ export function lockScreen(root: HTMLElement, done: () => void): void {
     stage = 'signin';
     clearInterval(timer);
     clearStage();
-    const initials = p.displayName.split(/\s+/).map((x) => x[0]).join('').slice(0, 2).toUpperCase();
     const msg = h('div', { class: 'lk-msg', role: 'alert' });
     const pw = h('input', { class: 'lk-input', type: 'password', placeholder: 'Password', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Password' });
     const eye = h('button', { class: 'lk-eye', type: 'button', title: 'Show password', 'aria-label': 'Show password', 'aria-pressed': 'false' }, '');
@@ -108,7 +110,8 @@ export function lockScreen(root: HTMLElement, done: () => void): void {
     });
     const panel = h('div', { class: 'lk-glass lk-panel' });
     const submit = (): void => {
-      if (pw.value === LAB_PASSWORD) {
+      if (pw.value === signInPassword()) {
+        playSound('logon');
         clearInterval(timer);
         screen.classList.add('leaving');
         setTimeout(() => { screen.remove(); done(); }, 280);
@@ -123,22 +126,22 @@ export function lockScreen(root: HTMLElement, done: () => void): void {
     };
     pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
     const account = h('button', { class: 'lk-account', type: 'button', 'aria-haspopup': 'listbox' },
-      h('span', { class: 'lk-mini' }, initials), h('span', { class: 'lk-account-name' }, `${p.displayName} · IAM Operations`), h('span', { class: 'lk-caret' }, '▾'));
+      avatar(24, 'lk-mini'), h('span', { class: 'lk-account-name' }, `${p.displayName} · IAM Operations`), h('span', { class: 'lk-caret' }, '▾'));
     const list = h('div', { class: 'lk-list', hidden: true, role: 'listbox' },
       h('button', { class: 'lk-row', type: 'button', role: 'option', 'aria-selected': 'true', onClick: () => { list.hidden = true; pw.focus(); } },
-        h('span', { class: 'lk-mini' }, initials), h('span', null, h('div', null, p.displayName), h('small', null, `${store.world.ad.netbios}\\${p.sam}`))),
+        avatar(24, 'lk-mini'), h('span', null, h('div', null, p.displayName), h('small', null, `${store.world.ad.netbios}\\${p.sam}`))),
       h('div', { class: 'lk-note' }, 'Other accounts sign in on their own workstations. This one is the IAM Operations workstation.'));
     account.addEventListener('click', (e) => { e.stopPropagation(); list.hidden = !list.hidden; });
     screen.addEventListener('click', () => { list.hidden = true; });
     panel.append(
-      h('div', { class: 'lk-avatar' }, initials),
+      avatar(104, 'lk-avatar'),
       h('div', { class: 'lk-name' }, p.displayName),
       h('div', { class: 'lk-upn' }, upn),
       h('div', { class: 'lk-picker' }, account, list),
       msg,
       h('div', { class: 'lk-field' }, pw, eye),
       h('button', { class: 'lk-btn', type: 'button', onClick: submit }, 'Sign in'),
-      h('div', { class: 'lk-cred' }, 'Built-in administrator. Default password: ', h('code', null, LAB_PASSWORD)),
+      sys().signInPassword ? h('div', { class: 'lk-cred' }, 'Use the password you set in Settings > Accounts.') : h('div', { class: 'lk-cred' }, 'Built-in administrator. Default password: ', h('code', null, DEFAULT_SIGN_IN_PASSWORD)),
       h('div', { class: 'lk-domain' }, `Sign in to: ${store.world.ad.netbios}`));
     panel.addEventListener('click', (e) => e.stopPropagation());
     screen.appendChild(panel);
@@ -285,7 +288,7 @@ export function buildDesktop(root: HTMLElement): void {
       { label: 'Display settings', icon: '', onClick: () => openApp(settingsApp, 'display') },
       { label: 'Personalize', icon: '', onClick: () => openApp(settingsApp, 'personalization') },
       '-',
-      { label: 'Open in Terminal', icon: '', onClick: () => openApp(powershellWindow(undefined, desktopDir()), undefined, false) },
+      { label: 'Open in Terminal', icon: '', onClick: () => openApp(terminalWindow({ cwd: desktopDir() }), undefined, false) },
       { label: 'Show more options', icon: '', disabled: true },
     ]);
   });
@@ -310,7 +313,7 @@ export function buildDesktop(root: HTMLElement): void {
   setPinToggle(togglePin);
   setUrlOpener((url) => openApp(browserApp, url));
   installLaunchers();
-  setTerminalOpener((dir) => openApp(powershellWindow(undefined, dir), undefined, false));
+  setTerminalOpener((dir) => openApp(terminalWindow({ cwd: dir }), undefined, false));
   setControlPanelLauncher((what) => {
     if (what.startsWith('settings:')) return openApp(settingsApp, what.slice(9));
     if (what === 'ise') return openApp(ise);
@@ -329,52 +332,49 @@ export function buildDesktop(root: HTMLElement): void {
       if (e.key === 'Escape' && shellState.menu && !shellState.menu.el.hidden) { e.preventDefault(); shellState.menu.close(); }
     });
     document.addEventListener('keydown', (e) => {
-      const k = e.key.toLowerCase();
-      if (!document.querySelector('.workstation')) return;
+      const k = (e.key ?? "").toLowerCase();
+      if (!document.querySelector('.workstation') || document.querySelector('.lk')) return;
       if (e.key === 'Meta' && !e.altKey && !e.ctrlKey) { e.preventDefault(); shellState.menu?.toggle(); }
       else if ((e.altKey || e.metaKey) && k === 'c' && !e.ctrlKey) { e.preventDefault(); toggleCopilot(); }
       else if (e.metaKey && k === 'e') { e.preventDefault(); openApp(explorerApp, undefined, false); }
       else if (e.metaKey && k === 'r') { e.preventDefault(); runDialog(); }
       else if (e.metaKey && k === 'i') { e.preventDefault(); openApp(settingsApp); }
+      else if (e.metaKey && k === 'l') { e.preventDefault(); lockSession(root); }
       else if (e.metaKey && k === 'x') { e.preventDefault(); showMenu(8, window.innerHeight - 60, winX(root)); }
     });
   }
 
+  const hooks = { openSettings: (page: string) => openApp(settingsApp, page), openUrl: (url: string) => openApp(browserApp, url) };
   const drawTray = (): void => {
     clear(tray);
     const d = new Date();
+    const y = sys();
     searchBtn.hidden = store.settings.taskbarSearch === false;
-    toastPrefs.muted = store.settings.notifications === false;
-    const open = store.world.tickets.filter((t) => t.assignmentGroup === 'IAM Operations' && !['Resolved', 'Cancelled'].includes(t.state)).length;
-    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Show hidden icons' }, h('span', { class: 'mdl' }, '')));
-    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: ai.status === 'online' ? `Ollama (local AI): ${ai.model}` : 'Ollama (local AI): not running', onClick: () => openApp(settingsApp, 'lab') }, h('span', { class: `mdl ${ai.status === 'online' ? '' : 'dim'}` }, '')));
-    tray.appendChild(h('button', { class: 'tray-btn tray-group', type: 'button', title: `${store.world.company.name.split(' ')[0]}-CORP\nInternet access`, onClick: (e: MouseEvent) => quickSettings(e) },
-      h('span', { class: 'mdl' }, ''), h('span', { class: 'mdl' }, ''), h('span', { class: 'mdl' }, '')));
-    tray.appendChild(h('button', { class: 'tray-clock', type: 'button', title: d.toLocaleDateString(undefined, { dateStyle: 'full' }), onClick: () => openApp(browserApp, 'https://servicedesk.meridianhealth.test/') },
-      h('span', null, clockText(d)), h('span', null, d.toLocaleDateString())));
-    tray.appendChild(h('button', { class: 'tray-btn bell', type: 'button', title: `${open} open ticket(s) assigned to IAM Operations`, onClick: () => openApp(browserApp, 'https://servicedesk.meridianhealth.test/') },
-      h('span', { class: 'mdl' }, ''), open ? h('span', { class: 'bell-count' }, String(open)) : null));
+    const unread = unreadNotifications();
+    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Show hidden icons', 'aria-label': 'Show hidden icons', onClick: () => toggleHiddenIcons([
+      { icon: '\uE99A', title: aiTitle(), dim: ai.status !== 'online', onClick: () => openApp(settingsApp, 'lab') },
+      { icon: '\uE83D', title: 'Windows Security: no actions needed', onClick: () => openApp(settingsApp, 'privacy') },
+      { icon: '\uE705', title: y.vpn.some((v) => v.connected) ? `VPN: connected to ${y.vpn.find((v) => v.connected)!.name}` : 'VPN: not connected', dim: !y.vpn.some((v) => v.connected), onClick: () => openApp(settingsApp, 'network') },
+      { icon: '\uE702', title: y.bluetooth ? 'Bluetooth: on' : 'Bluetooth: off', dim: !y.bluetooth, onClick: () => openApp(settingsApp, 'devices') },
+      { icon: '\uE895', title: 'Windows Update', onClick: () => openApp(settingsApp, 'update') },
+    ]) }, h('span', { class: 'mdl' }, '\uE70E')));
+    tray.appendChild(h('button', { class: 'tray-btn tray-group', type: 'button', title: `${y.airplane ? 'Airplane mode' : 'MERIDIAN-CORP: Internet access'}\nSpeakers: ${y.muted ? 'muted' : `${y.volume}%`}`, 'aria-label': 'Quick settings', onClick: () => toggleQuickSettings(hooks, drawTray) },
+      h('span', { class: 'mdl' }, y.airplane ? '\uE709' : '\uE839'), y.vpn.some((v) => v.connected) ? h('span', { class: 'mdl' }, '\uE705') : null, h('span', { class: 'mdl' }, trayVolumeIcon()), h('span', { class: 'mdl' }, '\uE83E')));
+    tray.appendChild(h('button', { class: 'tray-clock', type: 'button', title: fmtDate(d, 'full'), 'aria-label': `Clock: ${fmtDate(d, 'full')}. Open notifications and calendar.`, onClick: () => toggleCalendar(hooks) },
+      h('span', null, clockText(d)), h('span', null, fmtDate(d))));
+    tray.appendChild(h('button', { class: `tray-btn bell ${y.doNotDisturb ? 'dnd' : ''}`, type: 'button', title: y.doNotDisturb ? 'Do not disturb is on' : `${unread} new notification(s)`, 'aria-label': 'Notifications', onClick: () => toggleCalendar(hooks) },
+      h('span', { class: 'mdl' }, y.doNotDisturb ? '\uE7ED' : '\uEA8F'), unread ? h('span', { class: 'bell-count' }, unread > 9 ? '9+' : String(unread)) : null));
     tray.appendChild(h('button', { class: 'tray-peek', type: 'button', title: 'Show desktop', 'aria-label': 'Show desktop', onClick: () => desk.querySelectorAll<HTMLElement>('.win').forEach((w) => w.querySelector<HTMLButtonElement>('.cap.min')?.click()) }));
   };
-
-  function quickSettings(e: MouseEvent): void {
-    const a = appearance();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    showMenu(r.left - 120, r.top - 8, [
-      { label: 'Wi-Fi: MERIDIAN-CORP (connected)', icon: '', disabled: true },
-      { label: 'Dark mode', icon: '', checked: a.mode === 'dark', onClick: () => setAppearance({ mode: a.mode === 'dark' ? 'light' : 'dark' }) },
-      { label: 'Night light', icon: '', checked: !!store.settings.nightLight, onClick: () => { store.settings.nightLight = !store.settings.nightLight; persist(); document.documentElement.dataset.night = store.settings.nightLight ? 'on' : 'off'; } },
-      { label: 'Notifications', icon: '', checked: store.settings.notifications !== false, onClick: () => { store.settings.notifications = store.settings.notifications === false; persist(); drawTray(); } },
-      '-',
-      { label: 'All settings', icon: '', onClick: () => openApp(settingsApp) },
-    ]);
-  }
 
   drawIcons();
   drawTray();
   const unsub = subscribe(() => { drawTray(); drawIcons(); applyWallpaper(desk); });
-  const timer = setInterval(drawTray, 20_000);
-  shellState.dispose = () => { unsub(); clearInterval(timer); };
+  const unsubSys = onSysChange(drawTray);
+  // Redraw on the minute (or second, when the tray shows seconds).
+  const timer = setInterval(() => { if (sys().clockSeconds || new Date().getSeconds() === 0) drawTray(); }, 1000);
+  setLockHook(() => lockSession(root));
+  shellState.dispose = () => { unsub(); unsubSys(); clearInterval(timer); closeFlyout(); };
 }
 
 /** The Win+X menu (right-click Start). */
@@ -386,14 +386,14 @@ function winX(root: HTMLElement): MenuEntry[] {
     { label: 'Network Connections', onClick: () => openApp(settingsApp, 'network') },
     { label: 'Computer Management', onClick: () => openApp(aducApp) },
     '-',
-    { label: 'Terminal', onClick: () => openApp(powershellWindow(), undefined, false) },
-    { label: 'Terminal (Admin)', onClick: () => openApp(powershellWindow(), undefined, false) },
+    { label: 'Terminal', onClick: () => openApp(terminalApp, undefined, false) },
+    { label: 'Terminal (Admin)', onClick: () => openApp(terminalApp, undefined, false) },
     '-',
     { label: 'Settings', onClick: () => openApp(settingsApp) },
     { label: 'File Explorer', onClick: () => openApp(explorerApp, undefined, false) },
     { label: 'Run', onClick: runDialog },
     '-',
-    { label: 'Shut down or sign out', submenu: [{ label: 'Lock', onClick: () => signOut(root) }, { label: 'Sign out', onClick: () => signOut(root) }, '-', { label: 'Restart', onClick: () => location.reload() }] },
+    { label: 'Shut down or sign out', submenu: [{ label: 'Lock', onClick: () => lockSession(root) }, { label: 'Sign out', onClick: () => signOut(root) }, '-', { label: 'Restart', onClick: () => location.reload() }] },
     { label: 'Desktop', onClick: () => document.querySelectorAll<HTMLButtonElement>('.win .cap.min').forEach((b) => b.click()) },
   ];
 }
@@ -403,7 +403,7 @@ function runDialog(): void {
   closeMenus();
   document.querySelector('.run-dlg')?.remove();
   const input = h('input', { class: 'mm-input', style: 'flex:1', list: 'run-list', 'aria-label': 'Open' });
-  const list = h('datalist', { id: 'run-list' }, ['powershell', 'powershell_ise', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'ms-settings:', 'main.cpl'].map((v) => h('option', { value: v })));
+  const list = h('datalist', { id: 'run-list' }, ['wt', 'cmd', 'powershell', 'powershell_ise', 'mstsc', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'ms-settings:', 'main.cpl'].map((v) => h('option', { value: v })));
   const shield = h('div', { class: 'mm-shield run-dlg', style: 'position:fixed;z-index:100000;background:transparent;align-items:flex-end;justify-content:flex-start;padding:0 0 64px 12px' });
   const close = (): void => shield.remove();
   const ok = (): void => {
@@ -413,7 +413,7 @@ function runDialog(): void {
     if (/^main\.cpl$/i.test(v)) return openMouseProperties();
     if (/^https?:\/\//i.test(v)) return openApp(browserApp, v, false);
     if (/^[A-Za-z]:\\/.test(v)) return /\.\w+$/.test(v) ? openFile(v) : openApp(explorerApp, v, false);
-    const known = ['powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:'];
+    const known = ['wt', 'cmd', 'cmd.exe', 'mstsc', 'mstsc.exe', 'powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:'];
     if (!known.includes(v.toLowerCase())) {
       document.body.appendChild(messageShield(`Windows cannot find '${v}'. Make sure you typed the name correctly, and then try again.`));
       return;
@@ -447,7 +447,7 @@ function startMenu(root: HTMLElement): { el: HTMLElement; toggle: (focusSearch?:
   const body = h('div', { class: 'sm-body' });
   let allApps = false;
   const powerBtn = h('button', { class: 'sm-power', type: 'button', title: 'Power', 'aria-label': 'Power' }, h('span', { class: 'mdl' }, ''));
-  const userBtn = h('button', { class: 'sm-user', type: 'button' }, appIcon('user', 28), h('span', null, store.world.player.displayName));
+  const userBtn = h('button', { class: 'sm-user', type: 'button' }, avatar(28, 'avatar'), h('span', null, store.world.player.displayName));
   const el = h('div', { class: 'start-menu', hidden: true, role: 'dialog', 'aria-label': 'Start' },
     h('div', { class: 'sm-searchwrap' }, h('span', { class: 'mdl' }, ''), search), body,
     h('div', { class: 'sm-foot' }, userBtn, powerBtn));
@@ -504,6 +504,15 @@ function startMenu(root: HTMLElement): { el: HTMLElement; toggle: (focusSearch?:
   return api;
 }
 
+/** Lock: the lock screen over the running session. Windows stay open, as on Windows. */
+function lockSession(root: HTMLElement): void {
+  if (document.querySelector('.lk')) return;
+  closeMenus();
+  closeFlyout();
+  shellState.menu?.close();
+  lockScreen(root, () => {});
+}
+
 function signOut(root: HTMLElement): void {
   shellState.dispose();
   shellState.menu = null;
@@ -513,7 +522,12 @@ function signOut(root: HTMLElement): void {
   lockScreen(root, () => { buildDesktop(root); firstRun(); });
 }
 
+/** Startup apps, as chosen in Settings > Apps > Startup. */
 export function firstRun(): void {
-  openApp(coachApp);
-  if (!store.world.scenarios.length) openApp(notepadApp(`${desktopDir()}\\START-HERE.txt`));
+  const startup = sys().startupApps;
+  if (startup.includes('browser')) openApp(browserApp, 'https://servicedesk.meridianhealth.test/');
+  if (startup.includes('terminal')) openProgram('wt');
+  if (startup.includes('coach')) openApp(coachApp);
+  if (startup.includes('notes') || !store.world.scenarios.length) openApp(notepadApp(`${desktopDir()}\\START-HERE.txt`));
+  if (startup.includes('copilot')) toggleCopilot(true);
 }

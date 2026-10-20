@@ -10,6 +10,8 @@ import { nowIso } from '../core/time.ts';
 export const AD_EVENT_NAMES: Record<number, string> = {
   4624: 'An account was successfully logged on',
   4625: 'An account failed to log on',
+  4634: 'An account was logged off',
+  4723: "An attempt was made to change an account's password",
   4720: 'A user account was created',
   4722: 'A user account was enabled',
   4724: "An attempt was made to reset an account's password",

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lab walkthrough: three IAM labs, step by step | Meridian IAM Range</title>
+  <meta name="description" content="Three labs worked end to end in Meridian IAM Range: onboarding a nurse who starts today, refusing a socially engineered password reset, and an involuntary termination." />
+  <meta name="theme-color" content="#0b2236" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/walkthrough/walkthrough.css" />
+</head>
+<body>
+  <header class="top" id="top">
+    <a class="brand" href="/" aria-label="Meridian IAM Range, home">
+      <img src="/favicon.svg" alt="" width="30" height="30" />
+      <span>Meridian IAM Range</span>
+    </a>
+    <nav aria-label="Labs on this page">
+      <a href="#joiner">Joiner</a>
+      <a href="#reset">Password reset trap</a>
+      <a href="#leaver">Leaver</a>
+      <a href="/lab/">Try online</a>
+    </nav>
+    <a class="btn btn-small js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">Download</a>
+  </header>
+
+  <main class="walk">
+    <section class="walk-intro">
+      <h1>Three labs, worked step by step</h1>
+      <p>Every screen below is the real workstation, recorded while doing the work. The tickets, people and IDs were generated for that run; yours will differ, so follow the method rather than the values.</p>
+      <ol class="walk-toc">
+        <li><a href="#joiner"><strong>Onboard a nurse who starts today</strong><span>Joiner, difficulty 1. PeopleHub, the birthright matrix, PowerShell, ADUC, ServiceDesk, Remote Desktop.</span></a></li>
+        <li><a href="#reset"><strong>A password reset that should not happen</strong><span>Authentication, a trap. Identity verification against the HR record.</span></a></li>
+        <li><a href="#leaver"><strong>An involuntary termination, right now</strong><span>Leaver, P1. AD, Entra ID session revocation, Okta, Command Prompt.</span></a></li>
+      </ol>
+    </section>
+
+    <section class="lab" id="joiner">
+      <h2>Lab 1: onboard Mateo Silva, Registered Nurse, starting today</h2>
+      <ol class="walk-steps">
+        <li>
+          <div><h3>Start the lab in IAM Coach</h3><p>Choose <em>Joiner: New hire onboarding</em>, variation <em>Starts today</em>, department <em>Nursing</em>, then <strong>Start this lab</strong>. The Mentor panel on the right answers questions about the lab at any point.</p></div>
+          <figure><img src="/walkthrough/img/j1-coach.webp" width="1440" height="900" loading="lazy" alt="IAM Coach with the joiner lab selected." /></figure>
+        </li>
+        <li>
+          <div><h3>Read the ticket</h3><p>ServiceDesk opens on RITM0010401. It names the worker, employee ID, title, manager and start date, and it is P2 because the person is waiting in the lobby. The ticket is the request, not the source of truth.</p></div>
+          <figure><img src="/walkthrough/img/j2-ticket.webp" width="1440" height="900" loading="lazy" alt="The onboarding ticket in ServiceDesk." /></figure>
+        </li>
+        <li>
+          <div><h3>Confirm the hire in PeopleHub</h3><p>PeopleHub is the system of record: Pending Hire, Registered Nurse, Nursing, reports to Iris Chandra, start date today. Everything you put in AD comes from here.</p></div>
+          <figure><img src="/walkthrough/img/j3-peoplehub.webp" width="1440" height="900" loading="lazy" alt="The worker record in PeopleHub." /></figure>
+        </li>
+        <li>
+          <div><h3>Look up the birthright access</h3><p>Start, type <em>Birthright</em>, open the matrix. A Registered Nurse gets six groups: the role group, all-staff, ExpenseFlow, the nursing clinical share, VPN, and CareChart EHR. Nothing more: minimum necessary under the HIPAA policy.</p></div>
+          <figure><img src="/walkthrough/img/j4-matrix.webp" width="1440" height="900" loading="lazy" alt="Birthright-Access-Matrix.csv open in Notepad." /></figure>
+        </li>
+        <li>
+          <div><h3>Build the account in PowerShell</h3><p>In Windows Terminal: <code>New-ADUser</code> in the Nursing OU with the HR attributes, a <code>foreach</code> over the birthright groups, a temporary password with <code>-ChangePasswordAtLogon $true</code>, <code>Enable-ADAccount</code> because the start date is today, then a delta sync so Entra ID gets the account. The warnings are the range coaching you on password hygiene.</p></div>
+          <figure><img src="/walkthrough/img/j5-powershell.webp" width="1440" height="900" loading="lazy" alt="Windows Terminal showing the PowerShell commands that create and enable the account." /></figure>
+        </li>
+        <li>
+          <div><h3>Check it in Active Directory Users and Computers</h3><p>Corp &gt; Users &gt; Nursing &gt; Mateo Silva &gt; Member Of shows exactly the six birthright groups, with Domain Users as the primary group.</p></div>
+          <figure><img src="/walkthrough/img/j6-aduc.webp" width="1440" height="900" loading="lazy" alt="ADUC showing Mateo Silva's group memberships." /></figure>
+        </li>
+        <li>
+          <div><h3>Write the work note and resolve the ticket</h3><p>The note says what you checked, what you changed and why, in words an auditor can follow. Resolve as <em>Solved (Fulfilled)</em>.</p></div>
+          <figure><img src="/walkthrough/img/j7-resolved.webp" width="1440" height="900" loading="lazy" alt="The resolved ticket with the work note." /></figure>
+        </li>
+        <li class="warn">
+          <div><h3>The mistake worth making once: testing with the user's temporary password</h3><p>Remote Desktop &gt; <em>Verify a sign-in</em> as msilva with the temporary password works, and Windows asks for a new one, exactly as it should. But now IAM has chosen the nurse's working password and used up their first sign-in.</p></div>
+          <figure><img src="/walkthrough/img/j8-rdp-change.webp" width="1440" height="900" loading="lazy" alt="Remote Desktop asking the new user to change their password." /></figure>
+        </li>
+        <li class="warn">
+          <div><h3>The session works, and the check catches it</h3><p>Inside the session, <code>whoami /groups</code> shows the nursing groups. Then <strong>Check my work</strong> passes at 91% with one failure: <em>Must change password at next logon: no</em>. Verify a new account with <code>net user msilva /domain</code> or a test account, never by signing in as the person.</p></div>
+          <figure><img src="/walkthrough/img/j9-rdp-session.webp" width="1440" height="900" loading="lazy" alt="A Remote Desktop session signed in as the new user, with a Command Prompt." /></figure>
+        </li>
+        <li>
+          <div><h3>Read the result and the debrief</h3><p>Every other check passes: naming standard, OU, HR attributes, exact birthright, enabled, synced, ticket resolved. The debrief explains why each matters; below it is an interview question to answer in your own words.</p></div>
+          <figure><img src="/walkthrough/img/j11-lesson.webp" width="1440" height="900" loading="lazy" alt="IAM Coach checks with the must-change check failed and the debrief." /></figure>
+        </li>
+      </ol>
+    </section>
+
+    <section class="lab" id="reset">
+      <h2>Lab 2: a password reset for Eli Moreau that should not happen</h2>
+      <ol class="walk-steps">
+        <li>
+          <div><h3>Read what tier 1 collected</h3><p>An urgent caller "about to present to the board" wants the password read out over the phone, gives employee ID E100433, names Lucas Ferreira as manager, and asks to be called back on a new number.</p></div>
+          <figure><img src="/walkthrough/img/s1-ticket.webp" width="1440" height="900" loading="lazy" alt="The password reset ticket." /></figure>
+        </li>
+        <li>
+          <div><h3>Compare it with PeopleHub</h3><p>The real Eli Moreau is E100410 and reports to Sam Rivera. Two of the three checks in the identity verification procedure fail, and the caller refused the callback on file. Urgency plus an executive pretext is the classic pattern.</p></div>
+          <figure><img src="/walkthrough/img/s2-peoplehub.webp" width="1440" height="900" loading="lazy" alt="Eli Moreau's record in PeopleHub." /></figure>
+        </li>
+        <li>
+          <div><h3>Change nothing, write it down, close it correctly</h3><p>No reset. The work note lists which checks failed; the ticket is resolved as <em>Unable to Verify Identity</em> and referred to Security.</p></div>
+          <figure><img src="/walkthrough/img/s3-resolved.webp" width="1440" height="900" loading="lazy" alt="The ticket resolved as Unable to Verify Identity." /></figure>
+        </li>
+        <li>
+          <div><h3>Passed at 100%</h3><p>The critical check is that the password was <em>not</em> reset. Resetting it, which the caller pushed hard for, fails the lab.</p></div>
+          <figure><img src="/walkthrough/img/s4-passed.webp" width="1440" height="900" loading="lazy" alt="IAM Coach showing the lab passed at 100 percent." /></figure>
+        </li>
+      </ol>
+    </section>
+
+    <section class="lab" id="leaver">
+      <h2>Lab 3: terminate Sofia Marin, effective immediately</h2>
+      <ol class="walk-steps">
+        <li>
+          <div><h3>A confidential P1 from HR</h3><p>The person is in the meeting now and was on SharePoint minutes ago. Disabling AD alone will not stop the phone: cloud sessions and refresh tokens live on until they are revoked.</p></div>
+          <figure><img src="/walkthrough/img/l1-ticket.webp" width="1440" height="900" loading="lazy" alt="The confidential termination ticket." /></figure>
+        </li>
+        <li>
+          <div><h3>Close every route in, in order</h3><p>Disable first, then <code>Revoke-MgUserSignInSession</code> in Microsoft Graph, remove every group except Domain Users with a pipeline, record the ticket in the description, move the account to Disabled Users (kept for 30 days, not deleted), and run a delta sync.</p></div>
+          <figure><img src="/walkthrough/img/l2-powershell.webp" width="1440" height="900" loading="lazy" alt="PowerShell commands that offboard the user." /></figure>
+        </li>
+        <li>
+          <div><h3>Prove it from Command Prompt</h3><p>A second Terminal tab, <code>net user smarin /domain | findstr /i "active expires memberships"</code>: Account active No, only Domain Users left.</p></div>
+          <figure><img src="/walkthrough/img/l3-netuser.webp" width="1440" height="900" loading="lazy" alt="Command Prompt showing net user output for the disabled account." /></figure>
+        </li>
+        <li>
+          <div><h3>Okta: clear sessions and deactivate</h3><p>Okta keeps its own sessions. Clear them, then deactivate. The groups listed there refresh at the next AD import, which is why the session step cannot wait for it.</p></div>
+          <figure><img src="/walkthrough/img/l4-okta.webp" width="1440" height="900" loading="lazy" alt="The Okta admin console showing the user deprovisioned with zero live sessions." /></figure>
+        </li>
+        <li>
+          <div><h3>Resolve and check: 100%</h3><p>Every route is closed: AD, Entra ID, Okta, the SCIM-provisioned apps, and the record is kept for retention.</p></div>
+          <figure><img src="/walkthrough/img/l5-passed.webp" width="1440" height="900" loading="lazy" alt="IAM Coach showing the leaver lab passed at 100 percent." /></figure>
+        </li>
+      </ol>
+    </section>
+
+    <section class="walk-end">
+      <h2>Your turn</h2>
+      <p>The same labs come out differently every time: other people, other departments, other traps. Start one in the browser or install the workstation.</p>
+      <div class="cta"><a class="btn btn-primary js-download" href="https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest">Download for Windows</a><a class="btn btn-quiet-dark" href="/lab/">Try it in your browser</a></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Meridian IAM Range is a training environment. Meridian Health System, its staff, patients, domains and applications are fictional.</p>
+    <p>Created by Erick Omari. <a href="https://github.com/pitchiluxe/identityforge-iam-lab">Source and releases on GitHub</a>.</p>
+  </footer>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

@@ -15,6 +15,12 @@ export const ai = {
 };
 
 export async function refreshAi(): Promise<void> {
+  if (store.settings.system?.localAi === false) {
+    ai.models = [];
+    ai.status = 'offline';
+    notify();
+    return;
+  }
   ai.status = 'checking';
   notify();
   try {

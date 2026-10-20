@@ -66,6 +66,7 @@ const SMALL = {
   textFile: page() + '<path d="M5 7h6M5 9h6M5 11h4" stroke="#7a8591" stroke-width=".7"/>',
   csvFile: page() + '<path d="M5 7h6v6H5zM5 9h6M5 11h6M8 7v6" stroke="#1d7a2c" stroke-width=".7" fill="none"/>',
   psFile: page('#e8eefb') + '<path d="M5 8l2 1.5L5 11M8 11.5h3" stroke="#1d3f8f" stroke-width="1" fill="none"/>',
+  batFile: page('#eceff1') + '<rect x="4.5" y="7.5" width="7" height="5" rx=".6" fill="#1f1f1f"/><path d="M5.7 9l1.1.8-1.1.8M7.6 11h1.6" stroke="#e6e6e6" stroke-width=".7" fill="none"/><circle cx="11.6" cy="6" r="1.6" fill="#9e9e9e"/>',
   mdFile: page() + '<path d="M4.5 12V8l1.6 2 1.6-2v4M10 8v4M8.8 10.8l1.2 1.2 1.2-1.2" stroke="#4b5563" stroke-width=".8" fill="none"/>',
   desktop: '<rect x="1.5" y="2.5" width="13" height="9" rx=".8" fill="#3c8de0" stroke="#1f4f86" stroke-width=".7"/><rect x="5" y="12.5" width="6" height="1.4" fill="#6b7886"/>',
   downloads: '<circle cx="8" cy="8" r="6.5" fill="#1f6fd1"/><path d="M8 4v6M5.5 7.8L8 10.3l2.5-2.5M5 12h6" stroke="#fff" stroke-width="1.4" fill="none"/>',
@@ -82,6 +83,15 @@ const APP = {
     '<rect x="5" y="9" width="38" height="31" rx="3" fill="#f4cf5a" stroke="#b8892a" stroke-width="1.2"/><path d="M5 15h38" stroke="#dcae3b" stroke-width="3"/>' +
     '<circle cx="19" cy="25" r="4.5" fill="#f1c9a5" stroke="#b98a64"/><path d="M11.5 37c0-5 3.3-7.5 7.5-7.5s7.5 2.5 7.5 7.5z" fill="#3a7bd5" stroke="#1f4f86"/>' +
     '<circle cx="31" cy="23.5" r="4" fill="#f1c9a5" stroke="#b98a64"/><path d="M24.5 35c0-4.5 2.8-6.8 6.5-6.8s6.5 2.3 6.5 6.8z" fill="#5c9e3f" stroke="#2f6a1f"/>',
+  terminal:
+    '<rect x="4" y="7" width="40" height="34" rx="6" fill="#1f1f1f"/><rect x="4" y="7" width="40" height="8" rx="6" fill="#3a3a3a"/><rect x="4" y="12" width="40" height="3" fill="#3a3a3a"/>' +
+    '<path d="M12 22l7 5-7 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 33h12" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="10" cy="11" r="1.4" fill="#60cdff"/>',
+  cmd:
+    '<rect x="4" y="7" width="40" height="34" rx="4" fill="#0c0c0c" stroke="#5a5a5a" stroke-width="1.5"/><rect x="4" y="7" width="40" height="7" rx="4" fill="#e6e6e6"/><rect x="4" y="11" width="40" height="3" fill="#e6e6e6"/>' +
+    '<path d="M11 21l6 4.5-6 4.5" stroke="#e6e6e6" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 31h9" stroke="#e6e6e6" stroke-width="2.6" stroke-linecap="round"/>',
+  rdp:
+    '<rect x="5" y="8" width="38" height="26" rx="3" fill="#0f6cbd"/><rect x="8" y="11" width="32" height="20" rx="1.5" fill="#9fd3ff"/><path d="M19 34h10l2 5H17z" fill="#78909c"/><rect x="13" y="39" width="22" height="3" rx="1.5" fill="#546e7a"/>' +
+    '<path d="M16 21h11M23 17l4 4-4 4" stroke="#0f3b63" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
   powershell:
     '<rect x="4" y="7" width="40" height="34" rx="5" fill="#2671be"/><rect x="4" y="7" width="40" height="34" rx="5" fill="url(#g)" opacity=".35"/>' +
     '<path d="M13 17l10 7-10 7" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M25 32h11" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/>' +
@@ -176,6 +186,7 @@ export function appIcon(name: AppIcon, size = 32): HTMLImageElement {
 export function fileGlyph(path: string): SmallIcon {
   if (/\.csv$/i.test(path)) return 'csvFile';
   if (/\.ps1$/i.test(path)) return 'psFile';
+  if (/\.(bat|cmd)$/i.test(path)) return 'batFile';
   if (/\.md$/i.test(path)) return 'mdFile';
   return 'textFile';
 }

@@ -333,7 +333,7 @@ export const CMDLETS: CmdletDef[] = [
       const u = createUser(c.w, {
         sam, givenName: c.str('GivenName'), surname: c.str('Surname'), displayName: c.str('DisplayName') || name, upn: c.str('UserPrincipalName') || undefined, ou: path,
         department: c.str('Department'), title: c.str('Title'), manager: c.str('Manager') || null, employeeId: c.str('EmployeeID'), office: c.str('Office'),
-        description: c.str('Description'), enabled, passwordSet: c.named.AccountPassword instanceof SecureStringValue,
+        description: c.str('Description'), enabled, passwordSet: c.named.AccountPassword instanceof SecureStringValue, password: c.named.AccountPassword instanceof SecureStringValue ? c.named.AccountPassword.plain ?? undefined : undefined,
         mustChangePassword: c.named.ChangePasswordAtLogon === undefined ? true : truthy(c.named.ChangePasswordAtLogon),
       });
       if (c.has('PassThru')) return userObject(c.w, u);
@@ -397,7 +397,7 @@ export const CMDLETS: CmdletDef[] = [
       if (!c.has('Reset')) throw new PsError('The old password is required unless -Reset is used. Administrators reset with -Reset.');
       if (!(c.named.NewPassword instanceof SecureStringValue)) throw new PsError('Cannot bind parameter \'NewPassword\'. Cannot convert the value to type "System.Security.SecureString". Use (Read-Host -AsSecureString) or ConvertTo-SecureString.');
       if (whatIf(c, 'Set-ADAccountPassword', dnOf(u))) return;
-      resetPassword(c.w, u.sam, { mustChange: u.mustChangePassword });
+      resetPassword(c.w, u.sam, { mustChange: u.mustChangePassword, password: (c.named.NewPassword as SecureStringValue).plain });
       c.shell.warn('Password reset. Remember: Set-ADUser -ChangePasswordAtLogon $true so IAM never knows the user\'s working password.');
     },
   },
@@ -684,7 +684,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Creates a SecureString.', run(c) {
       if (!c.has('AsPlainText')) throw new PsError('Use -AsPlainText -Force, or better, Read-Host -AsSecureString so the password never appears in history.');
       c.shell.warn('Plain-text passwords stay in command history. Prefer Read-Host -AsSecureString.');
-      return new SecureStringValue();
+      return new SecureStringValue(c.str('String'));
     },
   },
   {
