@@ -13,3 +13,5 @@ publication/
 range/node_modules/
 range/dist/
 .playwright-mcp/
+.vercel
+.env*
