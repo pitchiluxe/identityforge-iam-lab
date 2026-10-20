@@ -21,6 +21,8 @@ export interface AppDef {
   pinned?: boolean;
   /** The app draws into the title bar (Chrome's tabs). */
   customTitlebar?: boolean;
+  /** Not a window (Screen Pen): Start and the taskbar call this instead of opening one. */
+  launch?: () => void;
 }
 
 export interface WinHandle {
@@ -127,6 +129,7 @@ function focusWin(win: Win): void {
 }
 
 export function openApp(app: AppDef, arg?: string, single = true): void {
+  if (app.launch) { app.launch(); return; }
   const existing = wins.find((x) => x.app.id === app.id);
   if (existing && single) {
     focusWin(existing);

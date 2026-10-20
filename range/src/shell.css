@@ -749,3 +749,34 @@ body::before { content: ''; position: fixed; inset: 0; z-index: 2147483646; poin
   .md-doc, .md-doc * { visibility: visible; }
   .md-doc { position: fixed; inset: 0; max-width: none; background: #fff; color: #000; }
 }
+
+/* ---- Screen Pen */
+.pen-sheet { position: fixed; inset: 0; z-index: 8000; }
+.pen-sheet.click-through, .pen-sheet.click-through .pen-canvas { pointer-events: none; }
+.pen-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.pen-sheet.draw .pen-canvas { cursor: crosshair; }
+/* While the sheet takes clicks, say so on the screen itself, not only on the toolbar. */
+.pen-sheet.draw::after { content: ''; position: fixed; inset: 0; pointer-events: none; border: 3px solid var(--accent); }
+.pen-sheet.draw::before { content: attr(data-label); position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 1; pointer-events: none; padding: 6px 14px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 600 12px var(--font); white-space: nowrap; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
+.pen-sheet.capturing::before, .pen-sheet.capturing::after { display: none; }
+.pen-bar { position: fixed; z-index: 8100; display: flex; align-items: center; gap: 3px; padding: 5px; border-radius: 10px; background: var(--acrylic); backdrop-filter: blur(30px) saturate(150%); border: 1px solid var(--acrylic-border); box-shadow: var(--shadow); color: var(--ink); font-family: var(--font); user-select: none; }
+.pen-grip { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 32px; color: var(--ink-2); cursor: grab; touch-action: none; }
+.pen-grip:active { cursor: grabbing; }
+.pen-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 32px; height: 32px; padding: 0 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); font: 12px var(--font); }
+.pen-btn .mdl { font-size: 16px; }
+.pen-btn:hover { background: var(--hover); }
+.pen-btn.on { background: var(--select); border-color: var(--accent); color: var(--accent); }
+.pen-btn.dim { opacity: 0.4; }
+.pen-btn.rec .mdl { color: #e81123; }
+.pen-btn.rec.on { background: #e81123; border-color: #e81123; color: #fff; font-variant-numeric: tabular-nums; }
+.pen-btn.rec.on .mdl { color: #fff; }
+.pen-swatch { width: 20px; height: 20px; margin: 0 1px; padding: 0; border-radius: 50%; border: 1px solid var(--line-strong); box-shadow: 0 0 0 2px transparent; }
+.pen-swatch.on { box-shadow: 0 0 0 2px var(--win-bg), 0 0 0 4px var(--accent); }
+.pen-size { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 32px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+.pen-size span { display: block; border-radius: 50%; background: var(--ink); }
+.pen-size:hover { background: var(--hover); }
+.pen-size.on { background: var(--select); border-color: var(--accent); }
+.pen-sep { width: 1px; height: 22px; margin: 0 3px; background: var(--line-strong); }
+.pen-mode { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--ink); font: 12px var(--font); white-space: nowrap; }
+.pen-mode.drawing { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+@media (max-width: 760px) { .pen-bar { flex-wrap: wrap; max-width: calc(100vw - 16px); } }

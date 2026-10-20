@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('meridianDesktop', {
   updateStatus: () => ipcRenderer.invoke('update:status'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  captureWindow: () => ipcRenderer.invoke('capture:screen'),
+  saveCapture: (name, bytes) => ipcRenderer.invoke('capture:save', name, bytes),
   onUpdateStatus: (fn) => {
     const handler = (_event, s) => fn(s);
     ipcRenderer.on('update:status', handler);

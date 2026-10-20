@@ -23,6 +23,7 @@ import { iseApp } from './apps/ise.ts';
 import { terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { securityApp } from './apps/security.ts';
+import { screenPenApp, toggleScreenPen } from './pen.ts';
 import { coachApp, setUrlOpener } from './apps/coach.ts';
 import { careerApp } from './apps/career.ts';
 import { setAppearance, setMousePropertiesOpener, settingsApp } from './apps/settings.ts';
@@ -34,7 +35,7 @@ import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, careerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, careerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
@@ -341,6 +342,7 @@ export function buildDesktop(root: HTMLElement): void {
       else if (e.metaKey && k === 'r') { e.preventDefault(); runDialog(); }
       else if (e.metaKey && k === 'i') { e.preventDefault(); openApp(settingsApp); }
       else if (e.metaKey && k === 'l') { e.preventDefault(); lockSession(root); }
+      else if (e.metaKey && e.shiftKey && k === 'd') { e.preventDefault(); toggleScreenPen(); }
       else if (e.metaKey && k === 'x') { e.preventDefault(); showMenu(8, window.innerHeight - 60, winX(root)); }
     });
   }
@@ -359,6 +361,7 @@ export function buildDesktop(root: HTMLElement): void {
       { icon: '\uE702', title: y.bluetooth ? 'Bluetooth: on' : 'Bluetooth: off', dim: !y.bluetooth, onClick: () => openApp(settingsApp, 'devices') },
       { icon: '\uE895', title: 'Windows Update', onClick: () => openApp(settingsApp, 'update') },
     ]) }, h('span', { class: 'mdl' }, '\uE70E')));
+    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Screen Pen (Win+Shift+D)\nDraw on the screen, take a screenshot or record', 'aria-label': 'Screen Pen', onClick: () => toggleScreenPen() }, h('span', { class: 'mdl' }, '')));
     tray.appendChild(h('button', { class: 'tray-btn tray-group', type: 'button', title: `${y.airplane ? 'Airplane mode' : 'MERIDIAN-CORP: Internet access'}\nSpeakers: ${y.muted ? 'muted' : `${y.volume}%`}`, 'aria-label': 'Quick settings', onClick: () => toggleQuickSettings(hooks, drawTray) },
       h('span', { class: 'mdl' }, y.airplane ? '\uE709' : '\uE839'), y.vpn.some((v) => v.connected) ? h('span', { class: 'mdl' }, '\uE705') : null, h('span', { class: 'mdl' }, trayVolumeIcon()), h('span', { class: 'mdl' }, '\uE83E')));
     tray.appendChild(h('button', { class: 'tray-clock', type: 'button', title: fmtDate(d, 'full'), 'aria-label': `Clock: ${fmtDate(d, 'full')}. Open notifications and calendar.`, onClick: () => toggleCalendar(hooks) },

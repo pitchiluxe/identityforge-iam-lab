@@ -14,7 +14,7 @@
 // The renderer stays sandboxed with no Node access. Everything it needs
 // crosses preload.cjs as a named channel.
 
-const { app, BrowserWindow, ipcMain, net, protocol, screen, shell } = require('electron');
+const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, net, protocol, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -133,6 +133,74 @@ ipcMain.handle('update:install', () => {
   setImmediate(() => autoUpdater.quitAndInstall(false, true));
   return true;
 });
+// ---------------------------------------------------------------------------
+// Screen Pen: screenshots and recordings
+// ---------------------------------------------------------------------------
+// capturePage, not desktopCapturer: the page gets a picture of this window and
+// nothing else, silently. Photographing the rest of the real desktop goes
+// through the recording picker below, which always asks.
+ipcMain.handle('capture:screen', async (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return null;
+  try {
+    const image = await mainWindow.webContents.capturePage();
+    return image.isEmpty() ? null : image.toDataURL();
+  } catch {
+    return null;
+  }
+});
+
+// Writes the bytes under Documents\Meridian IAM Range\Captures. The page names
+// the file, so the name is checked: no folders, no traversal, only .png/.webm.
+const MAX_CAPTURE_BYTES = 1024 * 1024 * 1024;
+ipcMain.handle('capture:save', async (event, name, bytes) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+  if (typeof name !== 'string' || !/^[\w.-]{1,80}\.(png|webm)$/i.test(name) || name.includes('..')) return null;
+  if (!(bytes instanceof ArrayBuffer) && !ArrayBuffer.isView(bytes)) return null;
+  const buf = Buffer.from(bytes instanceof ArrayBuffer ? bytes : bytes.buffer);
+  if (!buf.length || buf.length > MAX_CAPTURE_BYTES) return null;
+  const dir = path.join(app.getPath('documents'), PRODUCT_NAME, 'Captures');
+  await fs.promises.mkdir(dir, { recursive: true });
+  const file = path.join(dir, name);
+  if (path.dirname(file) !== dir) return null;
+  await fs.promises.writeFile(file, buf);
+  return file;
+});
+
+/**
+ * The main window's session holds only the workstation's own page (Chrome's
+ * websites run in webviews with their own partitions), so permissions there,
+ * including the camera and microphone for Screen Pen, are granted to that page
+ * and to nothing loaded from anywhere else.
+ */
+function installMediaPermissions(session) {
+  const ours = (url) => String(url || '').startsWith(`${SCHEME}://${HOST}/`);
+  session.setPermissionRequestHandler((contents, _permission, callback, details) => {
+    callback(ours(details && details.requestingUrl ? details.requestingUrl : contents.getURL()));
+  });
+  session.setPermissionCheckHandler((_contents, _permission, origin) => ours(`${origin}/`));
+  // getDisplayMedia is denied in Electron without a handler. The user picks
+  // what to record every time; cancelling grants nothing.
+  session.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      if (!mainWindow || request.frame !== mainWindow.webContents.mainFrame) return callback({});
+      const screens = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+      const choices = [`This window (${PRODUCT_NAME})`, ...screens.map((s, i) => (screens.length > 1 ? `Entire screen ${i + 1}` : 'Entire screen')), 'Cancel'];
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question', title: 'Choose what to share', message: 'What should Screen Pen record or capture?',
+        detail: 'Recording stops when you press Stop on the Screen Pen toolbar.', buttons: choices, cancelId: choices.length - 1, defaultId: 0, noLink: true,
+      });
+      if (response === choices.length - 1) return callback({});
+      const windowSource = { id: mainWindow.getMediaSourceId(), name: PRODUCT_NAME };
+      const video = response === 0 ? windowSource : screens[response - 1];
+      // 'loopback' is system audio on Windows, only when the page asked for audio.
+      callback(request.audioRequested && process.platform === 'win32' ? { video, audio: 'loopback' } : { video });
+    } catch (err) {
+      console.error('[capture] display media request failed', err);
+      callback({});
+    }
+  }, { useSystemPicker: false });
+}
+
 ipcMain.on('env:sync', (event) => { event.returnValue = { desktop: true, version: app.getVersion(), product: PRODUCT_NAME }; });
 
 // ---------------------------------------------------------------------------
@@ -180,6 +248,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, webviewTag: true },
   });
   mainWindow.setMenuBarVisibility(false);
+  installMediaPermissions(mainWindow.webContents.session);
   mainWindow.once('ready-to-show', () => { if (bounds.maximized) mainWindow.maximize(); mainWindow.show(); });
   mainWindow.on('close', saveBounds);
   mainWindow.on('page-title-updated', (e) => { e.preventDefault(); mainWindow.setTitle(WINDOW_TITLE); });
