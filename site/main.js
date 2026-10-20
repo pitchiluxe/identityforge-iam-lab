@@ -26,6 +26,9 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 })();
 
+// The exact origin to allow in OLLAMA_ORIGINS for the web edition.
+for (const el of document.querySelectorAll('.js-origin')) el.textContent = location.origin;
+
 // ---------------------------------------------------------------- header
 const header = document.querySelector('.top');
 const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 8);

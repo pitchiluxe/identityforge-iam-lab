@@ -14,7 +14,7 @@ The installed app updates itself: it checks GitHub Releases when it starts and e
 
 ## Use it in the browser
 
-No install needed: the landing page's **Try it in your browser** opens the web edition at `/lab/`. It is the same lab; progress is saved in that browser. Copilot chat reaches Ollama on your own computer only if Ollama allows the site: run `setx OLLAMA_ORIGINS "*"` in PowerShell, then quit and restart Ollama. `npm run build:web` rebuilds it into `../site/lab/` (the release script does this too).
+No install needed: the landing page's **Try it in your browser** opens the web edition at `/lab/`. It is the same lab; progress is saved in that browser. Copilot chat reaches Ollama on your own computer only if Ollama allows the site: run `setx OLLAMA_ORIGINS "https://<the site's address>"` in PowerShell (the exact address, never `"*"`, which would let any website use your local model), then quit and restart Ollama. `npm run build:web` rebuilds it into `../site/lab/` (the release script does this too).
 
 ## Run from source
 

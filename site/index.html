@@ -164,7 +164,7 @@
       <div class="notes">
         <p><strong>Automatic updates.</strong> The app checks for new releases when it starts and every six hours, downloads them in the background, and installs them when you restart. Settings &gt; Windows Update shows the current version and status.</p>
         <p><strong>Optional AI.</strong> Install <a href="https://ollama.com/download">Ollama</a> and run <code>ollama pull llama3.2</code> to turn on Copilot chat, AI-designed labs and reworded tickets.</p>
-        <p><strong>Rather not install?</strong> <a href="/lab/">Open the web edition</a>. It is the same lab in your browser; progress stays in that browser, and Copilot chat needs Ollama to allow the site (<code>setx OLLAMA_ORIGINS "*"</code>, then restart Ollama).</p>
+        <p><strong>Rather not install?</strong> <a href="/lab/">Open the web edition</a>. It is the same lab in your browser; progress stays in that browser, and Copilot chat needs Ollama to allow the site (<code>setx OLLAMA_ORIGINS "<span class="js-origin">https://this-site</span>"</code>, then restart Ollama). Allow only this site, never <code>"*"</code>, which would let any website use your local model.</p>
         <p><strong>Prefer the source?</strong> Clone the repository and run <code>npm ci</code> then <code>npm run dev</code> in <code>range/</code>.</p>
       </div>
     </section>

@@ -19,7 +19,8 @@ import type { Template } from '../scenarios/template.ts';
  */
 export const WEB_EDITION = typeof location !== 'undefined' && location.protocol === 'https:';
 const BASE = WEB_EDITION ? 'http://127.0.0.1:11434' : '/ollama';
-export const WEB_OLLAMA_HELP = 'In the web edition, Ollama must allow this website. In PowerShell run: setx OLLAMA_ORIGINS "*" then quit Ollama from the tray and start it again. Or install the desktop app, which needs no setting.';
+// Only this site's exact origin: a wildcard would let every website you visit use your local model.
+export const WEB_OLLAMA_HELP = `In the web edition, Ollama must allow this website. In PowerShell run: setx OLLAMA_ORIGINS "${typeof location !== 'undefined' ? location.origin : 'https://this-site'}" then quit Ollama from the tray and start it again. Do not use "*": that would let any website use your local model. Or install the desktop app, which needs no setting.`;
 const PREFERRED = ['llama3.2', 'qwen3.5', 'gemma4', 'qwen2.5', 'llama3.1', 'mistral', 'gemma2', 'phi3'];
 
 export interface ModelInfo {
