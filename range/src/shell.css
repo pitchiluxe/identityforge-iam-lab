@@ -1069,3 +1069,122 @@ body::before { content: ''; position: fixed; inset: 0; z-index: 2147483646; poin
 :root[data-theme='dark'] .cr-ntp-search { color: #e8eaed; }
 :root[data-theme='dark'] .cr-time, :root[data-theme='dark'] .cr-url, :root[data-theme='dark'] .cr-ntp-box .mdl { color: #9aa0a6; }
 :root[data-theme='dark'] .cr-fav:not(.chrome) { filter: brightness(0.8); }
+
+/* ---------------------------------------------------------------- taskbar settings */
+.tb-search.iconLabel { width: auto; padding: 0 12px; display: flex; gap: 8px; }
+.tb-search.box { width: 220px; padding: 0 14px; display: flex; gap: 10px; justify-content: flex-start; height: 34px; border-radius: 17px; background: var(--layer); box-shadow: inset 0 0 0 1px var(--acrylic-border); color: var(--ink-2); }
+.tb-search.box:hover { background: var(--layer); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.tb-search-label { font-size: 13px; }
+.tb-apps.labels .tb-app.running { width: auto; max-width: 168px; padding: 0 10px; display: flex; justify-content: flex-start; gap: 8px; }
+.tb-label { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tb-copilot.flash { animation: tbFlash 1.1s ease-in-out infinite; }
+@keyframes tbFlash { 50% { background: color-mix(in srgb, var(--accent) 45%, transparent); } }
+.tb-edge { display: none; }
+:root[data-tb-autohide='on'] .workstation { grid-template-rows: 1fr 0; }
+:root[data-tb-autohide='on'] .taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; transform: translateY(46px); transition: transform 0.2s ease; }
+:root[data-tb-autohide='on'] .taskbar:hover, :root[data-tb-autohide='on'] .taskbar.peek, :root[data-tb-autohide='on'] .taskbar:focus-within { transform: none; }
+:root[data-tb-autohide='on'] .tb-edge { display: block; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 4999; }
+.ws-sub { padding: 8px 0; border-top: 1px solid var(--line); }
+.ws-group > .ws-sub:first-of-type { border-top: 0; }
+.ws-disabled { opacity: 0.45; pointer-events: none; }
+
+/* ---------------------------------------------------------------- Task view */
+.task-view { position: absolute; inset: 0 0 48px 0; z-index: 4990; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(24px); display: grid; grid-template-rows: 1fr auto; padding: 40px; animation: flyIn 0.15s ease-out; }
+.tv-grid { display: flex; flex-wrap: wrap; gap: 24px; align-content: center; justify-content: center; }
+.tv-card { width: 260px; background: var(--layer); color: var(--ink); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; border: 2px solid transparent; }
+.tv-card.on, .tv-card:hover { border-color: var(--accent); }
+.tv-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; font-size: 12px; }
+.tv-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-x { font-family: var(--icons); width: 26px; height: 26px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); }
+.tv-x:hover { background: #c42b1c; color: #fff; }
+.tv-thumb { width: 100%; height: 150px; border: 0; background: var(--win-bg); display: grid; place-items: center; position: relative; }
+.tv-min { position: absolute; bottom: 8px; font-size: 11px; color: var(--ink-2); }
+.tv-empty { color: #fff; font-size: 16px; }
+.tv-desktops { display: flex; justify-content: center; gap: 12px; }
+.tv-desk { padding: 10px 18px; border-radius: 6px; background: var(--layer); color: var(--ink); font-size: 12px; border: 2px solid var(--accent); }
+
+/* ---------------------------------------------------------------- Task Manager */
+.tm { display: grid; grid-template-columns: 200px minmax(0, 1fr); height: 100%; background: var(--win-bg); color: var(--ink); font-size: 13px; }
+.tm.narrow { grid-template-columns: 48px minmax(0, 1fr); }
+.tm-nav { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px; border-right: 1px solid var(--line); background: var(--layer-2); }
+.tm-nav-item { display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); text-align: left; position: relative; white-space: nowrap; overflow: hidden; }
+.tm-nav-item:hover { background: var(--hover); }
+.tm-nav-item.on { background: var(--hover); }
+.tm-nav-item.on::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.tm-nav-item .mdl { font-size: 16px; width: 16px; }
+.tm-nav-fill { flex: 1; }
+.tm-page { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tm-page > .tm-scroll, .tm-page > .tm-perf, .tm-page > .tm-settings { flex: 1; }
+.tm-top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tm-top h1 { font-size: 18px; font-weight: 600; margin: 0; margin-right: auto; }
+.tm-actions { display: flex; gap: 4px; }
+.tm-act { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); font-size: 13px; }
+.tm-act:hover:not(:disabled) { background: var(--hover); }
+.tm-act:disabled { opacity: 0.4; }
+.tm-act[aria-pressed='true'] { background: var(--hover); color: var(--accent); }
+.tm-search { width: 300px; max-width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-bottom-color: var(--line-strong); border-radius: 4px; background: var(--layer); color: var(--ink); }
+.tm-scroll { overflow: auto; min-height: 0; }
+.tm-table { width: 100%; border-collapse: collapse; }
+.tm-table th { position: sticky; top: 0; z-index: 1; background: var(--win-bg); text-align: left; font-weight: 400; font-size: 12px; color: var(--ink-2); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: pre-line; vertical-align: bottom; user-select: none; }
+.tm-table th.sorted { color: var(--ink); }
+.tm-table th.num, .tm-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tm-caret { font-size: 9px; margin-left: 4px; }
+.tm-table td { padding: 5px 10px; white-space: nowrap; border-bottom: 1px solid transparent; }
+.tm-table.dense td { padding: 3px 10px; }
+.tm-row:hover td { background: var(--hover); }
+.tm-row.on td { background: var(--select); }
+.tm-row:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.tm-name { display: flex; align-items: center; gap: 10px; }
+.tm-name.sub { padding-left: 34px; }
+.tm-pi { font-size: 14px; color: var(--ink-2); }
+.tm-leaf { color: #16a34a; }
+.tm-status { width: 60px; }
+td.heat { background: color-mix(in srgb, #f5c242 calc(var(--heat, 0) * 70%), transparent); }
+.tm-group td { font-weight: 600; padding: 10px 10px 4px; cursor: default; }
+.tm-group .mdl { font-size: 10px; margin-right: 8px; }
+.tm-note { margin: 0; padding: 10px 16px; color: var(--ink-2); font-size: 12px; border-bottom: 1px solid var(--line); }
+.tm-scroll + .tm-note { border-bottom: 0; border-top: 1px solid var(--line); }
+.tm-perf { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.tm-tiles { display: flex; flex-direction: column; gap: 2px; padding: 8px; overflow: auto; border-right: 1px solid var(--line); }
+.tm-tile { display: grid; grid-template-columns: 70px 1fr; gap: 10px; align-items: center; padding: 8px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); text-align: left; }
+.tm-tile:hover, .tm-tile.on { background: var(--hover); }
+.tm-tile .tm-graph { width: 70px; height: 44px; border: 1px solid var(--line); }
+.tm-tile-text { display: grid; gap: 2px; font-size: 12px; white-space: pre-line; }
+.tm-tile-text strong { font-size: 14px; font-weight: 600; }
+.tm-detail { padding: 14px 20px; overflow: auto; display: grid; align-content: start; gap: 6px; }
+.tm-dhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tm-dhead h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.tm-dhead span { color: var(--ink-2); }
+.tm-gcap { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
+.tm-graph.big { width: 100%; height: 260px; border: 1px solid var(--line); }
+.tm-gridline { stroke: var(--line); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+.tm-line { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.tm-graph.c-cpu .tm-line { stroke: #2b88d8; }
+.tm-graph.c-cpu .tm-area { fill: rgba(43, 136, 216, 0.18); }
+.tm-graph.c-mem .tm-line { stroke: #8661c5; }
+.tm-graph.c-mem .tm-area { fill: rgba(134, 97, 197, 0.18); }
+.tm-graph.c-disk .tm-line { stroke: #4a9e3f; }
+.tm-graph.c-disk .tm-area { fill: rgba(74, 158, 63, 0.18); }
+.tm-graph.c-net .tm-line { stroke: #c27c0e; }
+.tm-graph.c-net .tm-area { fill: rgba(194, 124, 14, 0.18); }
+.tm-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 24px; margin-top: 10px; }
+.tm-kv div { display: grid; }
+.tm-kv span { font-size: 12px; color: var(--ink-2); }
+.tm-kv strong { font-size: 15px; font-weight: 600; }
+.tm-settings { padding: 12px 16px; display: grid; gap: 8px; align-content: start; }
+.tm-set { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; background: var(--layer); border: 1px solid var(--line); border-radius: 6px; }
+.tm-set span { display: grid; }
+.tm-set small { color: var(--ink-2); }
+@media (max-width: 760px) {
+  .tm { grid-template-columns: 48px minmax(0, 1fr); }
+  .tm-nav-item span:not(.mdl) { display: none; }
+  .tm-perf { grid-template-columns: 1fr; }
+  .tm-tiles { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+}
+/* Centre group and tray share the bar: the centre shifts left rather than run under the tray. */
+.taskbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); }
+.taskbar > .tb-center { grid-column: 2; position: static; transform: none; }
+.taskbar > .tray { grid-column: 3; justify-self: end; margin-left: 0; }
+:root[data-taskbar='left'] .taskbar { grid-template-columns: auto minmax(0, 1fr) max-content; }
+:root[data-taskbar='left'] .taskbar > .tb-center { grid-column: 1; margin-left: 8px; }
+.tb-center { min-width: 0; overflow: hidden; }

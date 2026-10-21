@@ -14,7 +14,7 @@ import { act, persist, store, subscribe } from './store.ts';
 import { ai } from './aiState.ts';
 import { appIcon, glyph, fileGlyph, type AppIcon } from './icons.ts';
 import { type MenuEntry, closeMenus, showMenu } from './ctxmenu.ts';
-import { type AppDef, closeAll, initWm, isPinned, openApp, setPinToggle, setPinned, minimizeAll } from './wm.ts';
+import { type AppDef, closeAll, drawTaskbar, initWm, isPinned, openApp, setPinToggle, setPinned, minimizeAll, toggleTaskView } from './wm.ts';
 import { appearance, applyAppearance, applyWallpaper, lockScreenCss } from './theme.ts';
 import { browserApp } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
@@ -36,10 +36,13 @@ import { installLaunchers, openFile, openProgram } from './launch.ts';
 import { PRODUCT, PRODUCT_RELEASES_URL } from '../product.ts';
 import { isDesktop } from './updates.ts';
 import { mountCopilot, setCopilotBadge, toggleCopilot } from './copilot.ts';
+import { setRunNewTask, taskManagerApp } from './apps/taskmgr.ts';
+import { applyTaskbar, taskbarPrefs } from './taskbarPrefs.ts';
+import { type TrayIconId, trayPlacement } from '../core/taskbar.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp, taskManagerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
@@ -187,9 +190,14 @@ export function buildDesktop(root: HTMLElement): void {
   const tasks = h('div', { class: 'tb-apps' });
   const tray = h('div', { class: 'tray' });
   const startBtn = h('button', { class: 'tb-app tb-start', type: 'button', title: 'Start', 'aria-label': 'Start', 'aria-haspopup': 'true' }, appIcon('start', 24));
-  const searchBtn = h('button', { class: 'tb-app tb-search', type: 'button', title: 'Search', 'aria-label': 'Search' }, h('span', { class: 'mdl' }, ''));
+  const searchBtn = h('button', { class: 'tb-app tb-search', type: 'button', title: 'Search', 'aria-label': 'Search' });
+  const taskViewBtn = h('button', { class: 'tb-app tb-taskview', type: 'button', title: 'Task view (Win+Tab)', 'aria-label': 'Task view', onClick: () => { menu.close(); toggleTaskView(); } }, appIcon('taskview', 24));
   const copilotBtn = h('button', { class: 'tb-app tb-copilot', type: 'button', title: 'IAM Copilot (Alt+C)', 'aria-label': 'IAM Copilot' }, appIcon('copilot', 24), h('span', { class: 'tb-badge', hidden: true }));
-  const bar = h('footer', { class: 'taskbar' }, h('div', { class: 'tb-center' }, startBtn, searchBtn, copilotBtn, tasks), tray);
+  const bar = h('footer', { class: 'taskbar' }, h('div', { class: 'tb-center' }, startBtn, searchBtn, taskViewBtn, copilotBtn, tasks), tray);
+  applyTaskbar();
+  // Auto-hide: the taskbar slides away and comes back when the pointer reaches the bottom edge.
+  const edge = h('div', { class: 'tb-edge', 'aria-hidden': 'true', onPointerenter: () => bar.classList.add('peek') });
+  bar.addEventListener('pointerleave', () => { if (!document.querySelector('.start-menu:not([hidden]), .fly')) bar.classList.remove('peek'); });
   const menu = startMenu(root);
   const iconsEl = h('div', { class: 'icons', role: 'listbox', 'aria-label': 'Desktop icons' });
   desk.appendChild(iconsEl);
@@ -302,7 +310,7 @@ export function buildDesktop(root: HTMLElement): void {
   bar.addEventListener('contextmenu', (e) => {
     if ((e.target as HTMLElement).closest('.tb-app:not(.tb-start), .tray')) return;
     e.preventDefault();
-    showMenu(e.clientX, e.clientY, [{ label: 'Task Manager', icon: '', disabled: true }, { label: 'Taskbar settings', icon: '', onClick: () => openApp(settingsApp, 'taskbar') }]);
+    showMenu(e.clientX, e.clientY, [{ label: 'Task Manager', icon: '', onClick: () => openApp(taskManagerApp) }, '-', { label: 'Taskbar settings', icon: '', onClick: () => openApp(settingsApp, 'taskbar') }]);
   });
   startBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); menu.close(); const r = startBtn.getBoundingClientRect(); showMenu(r.left, r.top - 8, winX(root)); });
   startBtn.addEventListener('click', () => menu.toggle());
@@ -311,10 +319,22 @@ export function buildDesktop(root: HTMLElement): void {
   shellState.menu = menu;
   shellState.guards = [startBtn, searchBtn];
 
-  const workstation = h('div', { class: 'workstation' }, desk, menu.el, bar);
+  const workstation = h('div', { class: 'workstation' }, desk, menu.el, bar, edge);
   root.appendChild(workstation);
   mountCopilot(workstation);
-  setCopilotBadge((n) => { const b = copilotBtn.querySelector('.tb-badge') as HTMLElement; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); });
+  let lastBadge = 0;
+  setCopilotBadge((n) => {
+    const b = copilotBtn.querySelector('.tb-badge') as HTMLElement;
+    const t = taskbarPrefs();
+    b.hidden = !n || !t.badges;
+    b.textContent = n > 9 ? '9+' : String(n);
+    // Show flashing on taskbar apps: the button pulses when something new arrives, until it is opened.
+    if (n > lastBadge && t.flashing) copilotBtn.classList.add('flash');
+    if (!n) copilotBtn.classList.remove('flash');
+    lastBadge = n;
+  });
+  copilotBtn.addEventListener('click', () => copilotBtn.classList.remove('flash'));
+  setRunNewTask(runDialog);
   initWm(desk, tasks, pinnedApps());
   setPinToggle(togglePin);
   setUrlOpener((url) => openApp(browserApp, url));
@@ -348,6 +368,8 @@ export function buildDesktop(root: HTMLElement): void {
       else if (e.metaKey && k === 'l') { e.preventDefault(); lockSession(root); }
       else if (e.metaKey && e.shiftKey && k === 'd') { e.preventDefault(); toggleScreenPen(); }
       else if (e.metaKey && k === 'x') { e.preventDefault(); showMenu(8, window.innerHeight - 60, winX(root)); }
+      else if (e.ctrlKey && e.shiftKey && k === 'escape') { e.preventDefault(); openApp(taskManagerApp); }
+      else if (e.metaKey && k === 'tab') { e.preventDefault(); toggleTaskView(); }
     });
   }
 
@@ -356,28 +378,40 @@ export function buildDesktop(root: HTMLElement): void {
     clear(tray);
     const d = new Date();
     const y = sys();
-    searchBtn.hidden = store.settings.taskbarSearch === false;
+    const t = taskbarPrefs();
+    searchBtn.hidden = t.search === 'hide';
+    searchBtn.className = `tb-app tb-search ${t.search}`;
+    clear(searchBtn);
+    searchBtn.append(h('span', { class: 'mdl' }, ''), t.search === 'iconLabel' || t.search === 'box' ? h('span', { class: 'tb-search-label' }, 'Search') : '');
+    taskViewBtn.hidden = !t.taskView;
+    copilotBtn.hidden = !t.copilot;
     const unread = unreadNotifications();
-    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Show hidden icons', 'aria-label': 'Show hidden icons', onClick: () => toggleHiddenIcons([
-      { icon: '\uE99A', title: aiTitle(), dim: ai.status !== 'online', onClick: () => openApp(settingsApp, 'lab') },
-      { icon: '\uE83D', title: 'Windows Security', onClick: () => openApp(securityApp) },
-      { icon: '\uE705', title: y.vpn.some((v) => v.connected) ? `VPN: connected to ${y.vpn.find((v) => v.connected)!.name}` : 'VPN: not connected', dim: !y.vpn.some((v) => v.connected), onClick: () => openApp(settingsApp, 'network') },
-      { icon: '\uE702', title: y.bluetooth ? 'Bluetooth: on' : 'Bluetooth: off', dim: !y.bluetooth, onClick: () => openApp(settingsApp, 'devices') },
-      { icon: '\uE895', title: 'Windows Update', onClick: () => openApp(settingsApp, 'update') },
-    ]) }, h('span', { class: 'mdl' }, '\uE70E')));
-    tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Screen Pen (Win+Shift+D)\nDraw on the screen, take a screenshot or record', 'aria-label': 'Screen Pen', onClick: () => toggleScreenPen() }, h('span', { class: 'mdl' }, '')));
+    const icons: Record<TrayIconId, { icon: string; title: string; dim?: boolean; onClick: () => void }> = {
+      ai: { icon: '', title: aiTitle(), dim: ai.status !== 'online', onClick: () => openApp(settingsApp, 'lab') },
+      security: { icon: '', title: 'Windows Security', onClick: () => openApp(securityApp) },
+      vpn: { icon: '', title: y.vpn.some((v) => v.connected) ? `VPN: connected to ${y.vpn.find((v) => v.connected)!.name}` : 'VPN: not connected', dim: !y.vpn.some((v) => v.connected), onClick: () => openApp(settingsApp, 'network') },
+      bluetooth: { icon: '', title: y.bluetooth ? 'Bluetooth: on' : 'Bluetooth: off', dim: !y.bluetooth, onClick: () => openApp(settingsApp, 'devices') },
+      update: { icon: '', title: 'Windows Update', onClick: () => openApp(settingsApp, 'update') },
+    };
+    const place = trayPlacement(t);
+    if (place.chevron) tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Show hidden icons', 'aria-label': 'Show hidden icons', onClick: () => toggleHiddenIcons(place.hidden.map((id) => icons[id])) }, h('span', { class: 'mdl' }, '')));
+    for (const id of place.shown) {
+      const i = icons[id];
+      tray.appendChild(h('button', { class: 'tray-btn tray-icon', type: 'button', title: i.title, 'aria-label': i.title, onClick: i.onClick }, h('span', { class: `mdl ${i.dim ? 'dim' : ''}` }, i.icon)));
+    }
+    if (t.penMenu) tray.appendChild(h('button', { class: 'tray-btn', type: 'button', title: 'Screen Pen (Win+Shift+D)\nDraw on the screen, take a screenshot or record', 'aria-label': 'Screen Pen', onClick: () => toggleScreenPen() }, h('span', { class: 'mdl' }, '')));
     tray.appendChild(h('button', { class: 'tray-btn tray-group', type: 'button', title: `${y.airplane ? 'Airplane mode' : 'MERIDIAN-CORP: Internet access'}\nSpeakers: ${y.muted ? 'muted' : `${y.volume}%`}`, 'aria-label': 'Quick settings', onClick: () => toggleQuickSettings(hooks, drawTray) },
       h('span', { class: 'mdl' }, y.airplane ? '\uE709' : '\uE839'), y.vpn.some((v) => v.connected) ? h('span', { class: 'mdl' }, '\uE705') : null, h('span', { class: 'mdl' }, trayVolumeIcon()), h('span', { class: 'mdl' }, '\uE83E')));
     tray.appendChild(h('button', { class: 'tray-clock', type: 'button', title: fmtDate(d, 'full'), 'aria-label': `Clock: ${fmtDate(d, 'full')}. Open notifications and calendar.`, onClick: () => toggleCalendar(hooks) },
       h('span', null, clockText(d)), h('span', null, fmtDate(d))));
     tray.appendChild(h('button', { class: `tray-btn bell ${y.doNotDisturb ? 'dnd' : ''}`, type: 'button', title: y.doNotDisturb ? 'Do not disturb is on' : `${unread} new notification(s)`, 'aria-label': 'Notifications', onClick: () => toggleCalendar(hooks) },
       h('span', { class: 'mdl' }, y.doNotDisturb ? '\uE7ED' : '\uEA8F'), unread ? h('span', { class: 'bell-count' }, unread > 9 ? '9+' : String(unread)) : null));
-    tray.appendChild(h('button', { class: 'tray-peek', type: 'button', title: 'Show desktop', 'aria-label': 'Show desktop', onClick: () => desk.querySelectorAll<HTMLElement>('.win').forEach((w) => w.querySelector<HTMLButtonElement>('.cap.min')?.click()) }));
+    if (taskbarPrefs().showDesktopCorner) tray.appendChild(h('button', { class: 'tray-peek', type: 'button', title: 'Show desktop', 'aria-label': 'Show desktop', onClick: () => desk.querySelectorAll<HTMLElement>('.win').forEach((w) => w.querySelector<HTMLButtonElement>('.cap.min')?.click()) }));
   };
 
   drawIcons();
   drawTray();
-  const unsub = subscribe(() => { drawTray(); drawIcons(); applyWallpaper(desk); });
+  const unsub = subscribe(() => { drawTray(); drawIcons(); applyWallpaper(desk); drawTaskbar(); });
   const unsubSys = onSysChange(drawTray);
   // Redraw on the minute (or second, when the tray shows seconds).
   const timer = setInterval(() => { if (sys().clockSeconds || new Date().getSeconds() === 0) drawTray(); }, 1000);
@@ -391,6 +425,7 @@ function winX(root: HTMLElement): MenuEntry[] {
     { label: 'Installed apps', onClick: () => openApp(settingsApp, 'apps') },
     { label: 'System', onClick: () => openApp(settingsApp, 'about') },
     { label: 'Event Viewer', onClick: () => openApp(eventViewerApp) },
+    { label: 'Task Manager', onClick: () => openApp(taskManagerApp) },
     { label: 'Network Connections', onClick: () => openApp(settingsApp, 'network') },
     { label: 'Computer Management', onClick: () => openApp(aducApp) },
     '-',
@@ -411,7 +446,7 @@ function runDialog(): void {
   closeMenus();
   document.querySelector('.run-dlg')?.remove();
   const input = h('input', { class: 'mm-input', style: 'flex:1', list: 'run-list', 'aria-label': 'Open' });
-  const list = h('datalist', { id: 'run-list' }, ['wt', 'cmd', 'powershell', 'powershell_ise', 'mstsc', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'ms-settings:', 'main.cpl'].map((v) => h('option', { value: v })));
+  const list = h('datalist', { id: 'run-list' }, ['wt', 'cmd', 'powershell', 'powershell_ise', 'mstsc', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'ms-settings:', 'main.cpl', 'taskmgr'].map((v) => h('option', { value: v })));
   const shield = h('div', { class: 'mm-shield run-dlg', style: 'position:fixed;z-index:100000;background:transparent;align-items:flex-end;justify-content:flex-start;padding:0 0 64px 12px' });
   const close = (): void => shield.remove();
   const ok = (): void => {
@@ -421,7 +456,7 @@ function runDialog(): void {
     if (/^main\.cpl$/i.test(v)) return openMouseProperties();
     if (/^https?:\/\//i.test(v)) return openApp(browserApp, v, false);
     if (/^[A-Za-z]:\\/.test(v)) return /\.\w+$/.test(v) ? openFile(v) : openApp(explorerApp, v, false);
-    const known = ['wt', 'cmd', 'cmd.exe', 'mstsc', 'mstsc.exe', 'powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:'];
+    const known = ['wt', 'cmd', 'cmd.exe', 'mstsc', 'mstsc.exe', 'powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:', 'taskmgr', 'taskmgr.exe'];
     if (!known.includes(v.toLowerCase())) {
       document.body.appendChild(messageShield(`Windows cannot find '${v}'. Make sure you typed the name correctly, and then try again.`));
       return;

@@ -19,6 +19,7 @@ import { browserApp, chromeWindow } from './apps/browser.ts';
 import { aducApp } from './apps/aduc.ts';
 import { settingsApp } from './apps/settings.ts';
 import { controlPanelApp } from './apps/control.ts';
+import { taskManagerApp } from './apps/taskmgr.ts';
 
 export type OpenMode = 'open' | 'edit' | 'notepad' | 'run';
 
@@ -60,6 +61,7 @@ export function openProgram(name: string): void {
   if (n === 'eventvwr' || n === 'eventvwr.msc') return openApp(eventViewerApp);
   if (n.startsWith('settings:')) return openApp(settingsApp, n.slice(9));
   if (n === 'control') return openApp(controlPanelApp);
+  if (n === 'taskmgr' || n === 'taskmgr.exe' || n === 'task manager') return openApp(taskManagerApp);
   if (n === 'ms-settings:') return openApp(settingsApp);
 }
 

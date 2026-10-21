@@ -7,6 +7,7 @@
  * estate whose accounts match. Scenarios then bend this world.
  */
 import type { AdUser, MfaMethod, World } from '../core/types.ts';
+import { ensureLabPasswords } from './labaccounts.ts';
 import { createRng, type Rng } from '../core/rng.ts';
 import { daysAgo, minutesAgo, nowIso } from '../core/time.ts';
 import {
@@ -228,5 +229,5 @@ export function createWorld(seed: number): World {
     body: `Hi Admin,\n\nWelcome aboard. You own the IAM Operations queue in ServiceDesk from today. This is a hospital: most accounts here can reach patient records, so read HIPAA-Access-Control-Policy.md first.\n\nA few things before you start:\n- PeopleHub is the source of truth. If HR has not recorded it, it has not happened.\n- Read the SOPs in Documents\\Policies, especially identity verification. We had a social-engineering attempt on the service desk last month.\n- Every change needs a ticket and a work note. Audit samples our tickets every quarter.\n- Entra and Okta follow AD after a sync. If something "didn't work in the cloud", check whether you synced.\n\nShout if you get stuck.\n\nHana\nSecurity Manager`,
   });
   w.files = seedFiles(w);
-  return w;
+  return ensureLabPasswords(w);
 }

@@ -69,7 +69,7 @@ export const accessRequest: Template = {
     const t = openTicket(w, {
       type: 'Request', category: 'Access Request', priority: 3, caller: u.displayName, scenarioId: ctx.id, openedMinutesAgo: 300,
       short: `Access request: ImageVault PACS for ${u.displayName}`,
-      description: `I need read access to ImageVault PACS to review prior imaging studies for a ${u.department} case review (patient safety committee).\n\nCatalog item: Application access\nApplication: ImageVault PACS (access group app-imagevault)\nRole needed: Sales User (read)`,
+      description: `I need read access to ImageVault PACS to review prior imaging studies for a ${u.department} case review (patient safety committee).\n\nCatalog item: Application access\nApplication: ImageVault PACS (access group app-imagevault)\nRole needed: Imaging User (read)`,
       variables: { 'Application': 'ImageVault PACS', 'Access group': 'app-imagevault', 'Role': 'Imaging User' },
       approvals: [
         { approver: manager.displayName, role: 'Manager', state: 'Approved', time: minutesAgo(250) },
@@ -355,7 +355,7 @@ export const ssoAccess: Template = {
       const t = openTicket(w, {
         type: 'Incident', category: 'Application Access', priority: 2, caller: u.displayName, scenarioId: ctx.id, openedMinutesAgo: 25,
         short: `ImageVault: "You are not assigned to this application in Okta" (${u.displayName})`,
-        description: `I can't get into ImageVault since this morning. Okta shows: "User is not assigned to the client application." I have three customer calls today. Everyone else on the Sales team can log in.`,
+        description: `I can't get into ImageVault since this morning. Okta shows: "User is not assigned to the client application." I have a full list of studies to read today. Everyone else in Radiology can log in.`,
       });
       return {
         title: `Restore ImageVault access: ${u.displayName}`,
@@ -410,7 +410,7 @@ export const ssoAccess: Template = {
       return;
     }
     for (const login of [...s.params.sales!.split(','), s.params.outsider!]) oktaAssignApp(w, 'okta-imagevault', login, false);
-    close(w, s.ticketIds[0]!, 'Solved (Fulfilled)', 'Removed all direct assignments. Radiology users keep access via app-imagevault; the non-Sales user lost ImageVault.');
+    close(w, s.ticketIds[0]!, 'Solved (Fulfilled)', 'Removed all direct assignments. Radiology users keep access via app-imagevault; the non-Radiology user lost ImageVault.');
   },
   naive(w, s) {
     if (s.twist === 'missing-group') {

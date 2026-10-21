@@ -159,6 +159,10 @@ const APP = {
     '<circle cx="24" cy="24" r="20" fill="#db4437"/><path d="M24 4a20 20 0 0 1 17.3 10H24z" fill="#db4437"/><path d="M41.3 14A20 20 0 0 1 24 44l8.7-15z" fill="#f4b400"/><path d="M24 44A20 20 0 0 1 6.7 14l8.7 15z" fill="#0f9d58"/><circle cx="24" cy="24" r="9.5" fill="#fff"/><circle cx="24" cy="24" r="7.5" fill="#4285f4"/>',
   copilot:
     '<defs><linearGradient id="cp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b88d8"/><stop offset=".5" stop-color="#8661c5"/><stop offset="1" stop-color="#e3008c"/></linearGradient></defs><path d="M10 34c0-12 6-24 16-24h6c4 0 6 3 5 7l-5 17c-1 4-4 6-8 6H14c-3 0-4-3-4-6z" fill="url(#cp)"/><circle cx="21" cy="24" r="2.6" fill="#fff"/><circle cx="29" cy="24" r="2.6" fill="#fff"/>',
+  taskmgr:
+    '<rect x="5" y="7" width="38" height="34" rx="4" fill="#fff" stroke="#3b4652" stroke-width="1.6"/><rect x="5" y="7" width="38" height="7" rx="4" fill="#3b4652"/><path d="M10 33l7-9 6 5 7-11 8 8" stroke="#16a34a" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  taskview:
+    '<rect x="5" y="11" width="24" height="20" rx="3" fill="#5b9bd5" stroke="#1f4f86" stroke-width="1.4"/><rect x="19" y="18" width="24" height="20" rx="3" fill="#9fc5ea" stroke="#1f4f86" stroke-width="1.4"/>',
   search: '<circle cx="21" cy="21" r="11" fill="none" stroke="currentColor" stroke-width="3.4"/><path d="M29 29l11 11" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>',
   start:
     '<rect x="6" y="6" width="17" height="17" rx="1.5" fill="#1a73e8"/><rect x="25" y="6" width="17" height="17" rx="1.5" fill="#1a73e8"/><rect x="6" y="25" width="17" height="17" rx="1.5" fill="#1a73e8"/><rect x="25" y="25" width="17" height="17" rx="1.5" fill="#1a73e8"/>',

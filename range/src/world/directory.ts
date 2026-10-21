@@ -335,43 +335,52 @@ export const SIGN_IN_MESSAGES = {
   'must-change': 'The user\'s password must be changed before signing in.',
 } as const;
 
+export interface SignInOptions {
+  /** When it happened; defaults to now. Scenario backdrops sign people in earlier in the day. */
+  time?: string;
+  /** 10 = Remote Desktop (default), 2 = at the console of their own PC. */
+  logonType?: 2 | 10;
+}
+
 /**
- * An interactive sign-in (Remote Desktop, logon type 10) checked the way a
+ * An interactive sign-in (Remote Desktop, logon type 10, or at the console, type 2) checked the way a
  * domain controller checks it: a wrong password counts towards lockout and
  * writes 4771 (and 4740 at the threshold); a disabled, locked or expired
  * account is refused for that reason; a required password change is reported
  * after the password itself is accepted. Success writes 4624.
  */
-export function signIn(w: World, identity: string, password: string, origin: string): SignInResult {
+export function signIn(w: World, identity: string, password: string, origin: string, opts: SignInOptions = {}): SignInResult {
+  const time = opts.time;
+  const type = opts.logonType === 2 ? '2' : '10';
   const sam = identity.replace(/^.*\\/, '').replace(/@.*$/, '');
   const u = findUser(w, sam);
   if (!u) return { ok: false, reason: 'unknown', message: SIGN_IN_MESSAGES.unknown };
   if (u.lockedOut) {
-    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: 'Failure reason: Account locked out. Status: 0xC0000234. Logon type: 10' });
+    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: `Failure reason: Account locked out. Status: 0xC0000234. Logon type: ${type}`, time });
     return { ok: false, reason: 'locked', message: SIGN_IN_MESSAGES.locked, user: u };
   }
   if (!u.labPassword || u.labPassword !== password) {
-    failLogons(w, u.sam, 1, origin);
+    failLogons(w, u.sam, 1, origin, time);
     if (u.lockedOut) return { ok: false, reason: 'locked', message: SIGN_IN_MESSAGES.locked, user: u };
     return { ok: false, reason: 'password', message: SIGN_IN_MESSAGES.password, user: u };
   }
   if (!u.enabled) {
-    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: 'Failure reason: Account currently disabled. Status: 0xC0000072. Logon type: 10' });
+    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: `Failure reason: Account currently disabled. Status: 0xC0000072. Logon type: ${type}`, time });
     return { ok: false, reason: 'disabled', message: SIGN_IN_MESSAGES.disabled, user: u };
   }
   if (u.accountExpires && u.accountExpires <= nowIso()) {
-    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: 'Failure reason: The specified account has expired. Status: 0xC0000193. Logon type: 10' });
+    audit(w, { source: 'AD', eventId: 4625, action: 'An account failed to log on', target: u.sam, actor: u.sam, origin, detail: `Failure reason: The specified account has expired. Status: 0xC0000193. Logon type: ${type}`, time });
     return { ok: false, reason: 'expired', message: SIGN_IN_MESSAGES.expired, user: u };
   }
   if (u.mustChangePassword) return { ok: false, reason: 'must-change', message: SIGN_IN_MESSAGES['must-change'], user: u };
   u.badPwdCount = 0;
-  u.lastLogon = nowIso();
-  audit(w, { source: 'AD', eventId: 4624, action: 'An account was successfully logged on', target: u.sam, actor: u.sam, origin, detail: 'Logon type: 10 (RemoteInteractive)' });
+  u.lastLogon = time ?? nowIso();
+  audit(w, { source: 'AD', eventId: 4624, action: 'An account was successfully logged on', target: u.sam, actor: u.sam, origin, detail: type === '2' ? 'Logon type: 2 (Interactive)' : 'Logon type: 10 (RemoteInteractive)', time });
   return { ok: true, user: u };
 }
 
 /** The user changes their own password at sign-in (after an admin reset). */
-export function changeOwnPassword(w: World, identity: string, oldPassword: string, newPassword: string, origin: string): AdUser {
+export function changeOwnPassword(w: World, identity: string, oldPassword: string, newPassword: string, origin: string, time?: string): AdUser {
   const u = getUser(w, identity);
   if (!u.labPassword || u.labPassword !== oldPassword) throw new AdError('The specified network password is not correct.');
   if (newPassword === oldPassword) throw new AdError('Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirements of the domain.');
@@ -379,9 +388,9 @@ export function changeOwnPassword(w: World, identity: string, oldPassword: strin
   if (newPassword.length < 12 || classes < 3) throw new AdError('Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirements of the domain.');
   u.labPassword = newPassword;
   u.mustChangePassword = false;
-  u.pwdLastSet = nowIso();
+  u.pwdLastSet = time ?? nowIso();
   touch(u);
-  audit(w, { source: 'AD', eventId: 4723, action: 'An attempt was made to change an account\'s password', target: u.sam, actor: u.sam, origin });
+  audit(w, { source: 'AD', eventId: 4723, action: 'An attempt was made to change an account\'s password', target: u.sam, actor: u.sam, origin, time });
   return u;
 }
 

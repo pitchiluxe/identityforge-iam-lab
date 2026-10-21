@@ -34,6 +34,8 @@ export interface SystemSettings {
 }
 
 export const DEFAULT_SIGN_IN_PASSWORD = 'Meridian!2026';
+/** Apps that can open at sign-in (Settings > Apps > Startup and Task Manager > Startup apps). */
+export const STARTUP_APPS: readonly [string, string][] = [['coach', 'IAM Coach'], ['notes', 'START-HERE.txt'], ['browser', 'Google Chrome (ServiceDesk)'], ['copilot', 'IAM Copilot'], ['terminal', 'Terminal']];
 export const AVATAR_KEY = 'identityforge-range-avatar';
 
 const DEFAULTS: SystemSettings = {

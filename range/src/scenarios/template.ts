@@ -151,3 +151,16 @@ export function vary<T>(rng: Rng, options: readonly T[]): T {
 export function raiseSir(w: World, short: string, description: string): void {
   openTicket(w, { type: 'Security Incident', category: 'Security', priority: 2, caller: w.player.displayName, short, description });
 }
+
+/** The laptop someone signs in on: their own computer object, as desktop support builds it. */
+export function issueLaptop(w: World, rng: Rng, sam: string, lastLogon: string, os = 'Windows 11 Enterprise'): string {
+  const used = w.ad.computers.map((c) => /^MHS-LT-(\d+)$/.exec(c.name)?.[1]).filter(Boolean).map(Number);
+  const name = `MHS-LT-${Math.max(100, ...used) + 1}`;
+  w.ad.computers.push({ name, ou: 'Corp/Workstations', os, enabled: true, lastLogon, primaryUser: sam, ip: `10.10.${rng.int(30, 60)}.${rng.int(10, 250)}` });
+  return name;
+}
+
+/** A strong throwaway password for backdrop accounts (the lab never shows it). */
+export function labSecret(rng: Rng): string {
+  return `Mhs-${rng.int(100000, 999999)}-${rng.pick(['Cedar', 'Harbor', 'Maple', 'Summit', 'Willow'])}!`;
+}

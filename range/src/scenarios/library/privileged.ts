@@ -1,12 +1,12 @@
 /**
  * Privileged access, Conditional Access and hybrid identity.
  */
-import { daysAgo, minutesAgo, nowIso } from '../../core/time.ts';
+import { atTime, daysAgo, minutesAgo, nowIso } from '../../core/time.ts';
 import { BREAK_GLASS, STAGING_OU, birthright, deptOu, roleFor } from '../../world/company.ts';
-import { addMember, createUser, getUser, moveUser, removeMember, setUser } from '../../world/directory.ts';
+import { addMember, changeOwnPassword, createUser, getUser, moveUser, removeMember, setUser, signIn } from '../../world/directory.ts';
 import { assignRole, findEntraUser, removeRole, runEntraSync, saveCaPolicy } from '../../world/cloud.ts';
 import { nextEmployeeId, openTicket } from '../../world/itsm.ts';
-import { type Built, type Template, check, close, isLead, leadOf, newPerson, pickDepartment, pickEmployee, securityUser, syncAll } from '../template.ts';
+import { type Built, type Template, check, close, isLead, issueLaptop, labSecret, leadOf, newPerson, pickDepartment, pickEmployee, securityUser, syncAll } from '../template.ts';
 
 const SVC = 'MERIDIAN\\svc-provisioning';
 
@@ -252,9 +252,22 @@ export const hybridSync: Template = {
     w.hr.transactions.push({ time: daysAgo(3), employeeId, type: 'Hire', detail: `${role.title}, ${dept}`, effective: nowIso() });
     const ou = twist === 'staging-ou' ? STAGING_OU : deptOu(dept);
     const hd = w.ad.users.find((x) => x.title === 'Service Desk Analyst')!;
-    createUser(w, { sam: p.sam, givenName: p.first, surname: p.last, ou, department: dept, title: role.title, manager: lead.sam, employeeId, office: 'Boston Main Campus', enabled: true, passwordSet: true, mustChangePassword: true }, hd.sam);
-    for (const g of birthright(role.group)) addMember(w, g, p.sam, hd.sam);
-    let ticketText = `${p.first} ${p.last} started today in ${dept}. They can log in to their laptop, but there is no mailbox, no Teams and no SSO apps. Their manager is asking what's going on.`;
+    // What the ticket says must be true in the systems: the service desk built the
+    // account before the start date, and the new starter signed in on their own
+    // laptop this morning (temporary password, forced change, then a 4624).
+    const temp = labSecret(rng);
+    atTime(daysAgo(2), () => {
+      createUser(w, { sam: p.sam, givenName: p.first, surname: p.last, ou, department: dept, title: role.title, manager: lead.sam, employeeId, office: 'Boston Main Campus', enabled: true, passwordSet: true, password: temp, mustChangePassword: true }, hd.sam);
+      for (const g of birthright(role.group)) addMember(w, g, p.sam, hd.sam);
+    });
+    const firstLogon = minutesAgo(rng.int(70, 110));
+    const laptop = issueLaptop(w, rng, p.sam, firstLogon);
+    atTime(firstLogon, () => {
+      const own = labSecret(rng);
+      changeOwnPassword(w, p.sam, temp, own, laptop);
+      signIn(w, p.sam, own, laptop, { logonType: 2 });
+    });
+    let ticketText = `${p.first} ${p.last} started today in ${dept}. They signed in to their laptop (${laptop}) earlier today, but there is no mailbox, no Teams and no SSO apps. Their manager is asking what's going on.`;
     if (twist === 'soft-match-blocked') {
       w.entra.users.push({ id: `c10d0000-0000-4000-a000-${String(rng.int(100000, 999999)).padStart(12, '0')}`, upn: `${p.sam}@meridianhealth.test`, displayName: `${p.first} ${p.last}`, source: 'cloud', onPremSam: null, accountEnabled: true, department: '', jobTitle: '', groups: [], mfaMethods: [], mfaResetAt: null, sessionsValidFrom: daysAgo(2), sessions: [], roles: [{ role: 'Helpdesk Administrator', assignment: 'active', permanent: true, expires: null, justification: 'Created early so they could shadow the service desk' }], licenses: [], riskLevel: 'none', deleted: false });
       runEntraSync(w);

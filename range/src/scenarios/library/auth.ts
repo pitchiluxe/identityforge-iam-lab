@@ -3,12 +3,12 @@
  * these are traps, because social engineering of the service desk is how
  * real breaches start.
  */
-import { daysAgo, minutesAgo } from '../../core/time.ts';
-import { failLogons, findUser, resetPassword, unlock } from '../../world/directory.ts';
+import { atTime, daysAgo, minutesAgo } from '../../core/time.ts';
+import { changeOwnPassword, failLogons, findUser, resetPassword, unlock } from '../../world/directory.ts';
 import { addSignIn, findEntraUser, oktaClearSessions, requireMfaReregistration, revokeSessions, setRisk } from '../../world/cloud.ts';
 import { deliverMail, openTicket, reportPhishing } from '../../world/itsm.ts';
 import { OFFICE_IPS } from '../../world/seed.ts';
-import { type Built, type Template, check, close, employees, helpdeskUser, pickEmployee, raiseSir, workerOf } from '../template.ts';
+import { type Built, type Template, check, close, employees, helpdeskUser, labSecret, pickEmployee, raiseSir, workerOf } from '../template.ts';
 
 const ATTACKER_IPS = ['192.0.2.66', '192.0.2.140', '192.0.2.201', '192.0.2.17'];
 const ATTACKER_PLACES = ['Lagos, NG', 'Bucharest, RO', 'Sao Paulo, BR', 'Hanoi, VN', 'Lisbon, PT'];
@@ -62,7 +62,15 @@ export const lockout: Template = {
     }
     const u = pickEmployee(ctx);
     const old = `MHS-LT-0${rng.int(10, 99)}`;
-    w.ad.computers.push({ name: old, ou: 'Corp/Workstations', os: 'Windows 10 Enterprise (replaced)', enabled: false, lastLogon: daysAgo(rng.int(18, 40)), primaryUser: u.sam, ip: `10.10.${rng.int(30, 60)}.${rng.int(10, 250)}` });
+    // The story in the ticket, as the systems recorded it: a new laptop last week,
+    // the password changed on it (4723), and the old laptop never switched off, so
+    // its computer account is still enabled and still talking to the DC.
+    const laptop = w.ad.computers.find((c) => c.primaryUser === u.sam && c.enabled);
+    const changedOn = daysAgo(rng.int(6, 8));
+    if (laptop) laptop.os = 'Windows 11 Enterprise';
+    u.labPassword ??= labSecret(rng);
+    atTime(changedOn, () => changeOwnPassword(w, u.sam, u.labPassword!, labSecret(rng), laptop?.name ?? 'MHS-DC01'));
+    w.ad.computers.push({ name: old, ou: 'Corp/Workstations', os: 'Windows 10 Enterprise', enabled: true, lastLogon: minutesAgo(rng.int(15, 45)), primaryUser: u.sam, ip: `10.10.${rng.int(30, 60)}.${rng.int(10, 250)}` });
     failLogons(w, u.sam, 5, old, minutesAgo(2 * 24 * 60));
     unlock(w, u.sam, helpdeskUser(w).sam);
     failLogons(w, u.sam, 5, old, minutesAgo(26 * 60));
@@ -232,7 +240,7 @@ export const mfaReset: Template = {
     const m = deliverMail(w, {
       from: external, fromName: u.displayName, external: true, minutesAgo: 9,
       subject: 'URGENT pls remove my MFA',
-      body: `Hi IT,\n\nThis is ${u.givenName} from ${u.department}. I'm travelling (${place.split(',')[0]}) and lost my phone, so I can't do the Authenticator thing. I have a client call in an hour and need email NOW.\n\nCan you just turn off MFA on my account or remove the old phone so I can set up a new one? I'm writing from my personal email because obviously I can't get into work email lol.\n\nThanks!!\n${u.givenName}`,
+      body: `Hi IT,\n\nThis is ${u.givenName} from ${u.department}. I'm travelling (${place.split(',')[0]}) and lost my phone, so I can't do the Authenticator thing. I have a committee meeting in an hour and need email NOW.\n\nCan you just turn off MFA on my account or remove the old phone so I can set up a new one? I'm writing from my personal email because obviously I can't get into work email lol.\n\nThanks!!\n${u.givenName}`,
     });
     const t = openTicket(w, {
       type: 'Incident', category: 'MFA', priority: 2, caller: external, requestedFor: u.displayName, scenarioId: ctx.id, openedMinutesAgo: 8,

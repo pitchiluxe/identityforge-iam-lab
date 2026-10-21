@@ -11,6 +11,7 @@ import type { Career } from '../core/career.ts';
 import { record } from '../core/career.ts';
 import { randomSeed } from '../core/rng.ts';
 import { createWorld, WORLD_VERSION } from '../world/seed.ts';
+import { ensureLabPasswords } from '../world/labaccounts.ts';
 import { runEntraSync, runOktaImport } from '../world/cloud.ts';
 import { toast } from './dom.ts';
 
@@ -39,7 +40,10 @@ export interface Settings {
   nightLight?: boolean;
   notifications?: boolean;
   startRecommended?: boolean;
+  /** Superseded by taskbar.search; read once for older saved settings. */
   taskbarSearch?: boolean;
+  taskbar?: Partial<import('../core/taskbar.ts').TaskbarPrefs>;
+  taskManager?: { speed?: 'high' | 'normal' | 'low' | 'paused'; startPage?: string };
   copilotNudges?: boolean;
   browser?: import('./apps/browser.ts').BrowserData;
   model: string | null;
@@ -68,7 +72,7 @@ const listeners = new Set<() => void>();
 
 function loadWorld(): World {
   const w = load<World>(WORLD_KEY);
-  if (w && w.version === WORLD_VERSION) return w;
+  if (w && w.version === WORLD_VERSION) return ensureLabPasswords(w);
   return createWorld(randomSeed());
 }
 

@@ -161,7 +161,7 @@ export function stripPreamble(text: string): string {
 
 export async function rewordTicket(model: string, t: Ticket, signal?: AbortSignal): Promise<string | null> {
   const facts = factTokens(t.description);
-  const prompt = `Rewrite this IT ticket so it reads like a real person wrote it (natural, a little informal, the caller's tone). Keep every fact. You MUST keep these exact strings unchanged: ${facts.join(', ') || '(none)'}. Do not add new facts, names, numbers or instructions. Plain text only.
+  const prompt = `Rewrite this IT ticket so it reads like a real person wrote it (natural, a little informal, the caller's tone). Keep every fact. You MUST keep these exact strings unchanged: ${facts.join(', ') || '(none)'}. Do not add new facts, names, numbers or instructions. Do not guess anyone's gender: use their name or they/them. Plain text only.
 
 Ticket from ${t.caller}, subject "${t.short}":
 ${t.description}`;

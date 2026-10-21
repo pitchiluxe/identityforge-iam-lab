@@ -8,7 +8,7 @@ let t = Date.parse('2026-10-19T14:00:00Z');
 setClock(() => (t += 1000));
 const HOST = 'MHS-TEST-WKS01';
 
-test('an account nobody has set a password for cannot sign in', () => {
+test('a wrong password is refused', () => {
   const w = createWorld(3);
   const r = signIn(w, 'vhale', 'anything', HOST);
   assert.equal(r.ok, false);

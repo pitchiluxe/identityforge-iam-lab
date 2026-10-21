@@ -9,6 +9,7 @@ import type { Department, ScenarioInstance, World } from '../core/types.ts';
 import { createRng, randomSeed } from '../core/rng.ts';
 import { nowIso } from '../core/time.ts';
 import { grade } from './grader.ts';
+import { issueBackdropPasswords } from '../world/labaccounts.ts';
 import type { Template } from './template.ts';
 import { joiner, leaver, mover } from './library/lifecycle.ts';
 import { compromised, lockout, mfaReset, passwordReset } from './library/auth.ts';
@@ -60,7 +61,9 @@ export function startScenario(w: World, opts: StartOptions = {}): ScenarioInstan
   const id = `SCN-${String(++w.counters.scenario).padStart(4, '0')}`;
   const started = nowIso();
   const auditFrom = w.counters.audit;
+  const existing = new Set(w.ad.users.map((u) => u.sam));
   const built = template.build({ w, rng, twist, id, started, department: opts.department });
+  issueBackdropPasswords(w, existing);
   const instance: ScenarioInstance = {
     id,
     templateId: template.id,

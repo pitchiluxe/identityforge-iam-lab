@@ -9,11 +9,13 @@ import { ai, chooseModel, refreshAi } from '../aiState.ts';
 import { ACCENTS, type Appearance, appearance, applyAppearance, lockScreenCss, wallpaperCss } from '../theme.ts';
 import { CUSTOM_WALLPAPER_KEY, DEFAULT_LOCK_SCREEN_ID, DEFAULT_WALLPAPER_ID, allWallpapers, backgroundFor } from '../wallpapers.ts';
 import { generateBatch } from '../wallpaperGenerator.ts';
-import { DEFAULT_SIGN_IN_PASSWORD, REGIONS, type SystemSettings, TIME_ZONES, applySystem, avatar, avatarData, fmtDate, fmtTime, lockNow, onSysChange, playSound, removeAvatar, setAvatarFromFile, setSys, signInPassword, sys } from '../system.ts';
+import { DEFAULT_SIGN_IN_PASSWORD, REGIONS, STARTUP_APPS, type SystemSettings, TIME_ZONES, applySystem, avatar, avatarData, fmtDate, fmtTime, lockNow, onSysChange, playSound, removeAvatar, setAvatarFromFile, setSys, signInPassword, sys } from '../system.ts';
 import { appVersion, checkForUpdates, installUpdate, isDesktop, onUpdateChange, updateStatus } from '../updates.ts';
 import { PRODUCT, PRODUCT_RELEASES_URL } from '../../product.ts';
 import { type AppDef, onOpenArg, openApp } from '../wm.ts';
 import { securityApp } from './security.ts';
+import { type CombineMode, type SearchMode, TRAY_ICONS } from '../../core/taskbar.ts';
+import { setTaskbar, taskbarPrefs } from '../taskbarPrefs.ts';
 
 type Page = 'home' | 'system' | 'display' | 'sound' | 'notifications' | 'about' | 'devices' | 'mouse' | 'network' | 'personalization' | 'background' | 'colors' | 'themes' | 'lockscreen' | 'start' | 'taskbar'
   | 'apps' | 'accounts' | 'time' | 'gaming' | 'accessibility' | 'pointer' | 'effects' | 'privacy' | 'update' | 'lab';
@@ -163,7 +165,7 @@ export const settingsApp: AppDef = {
             card('', 'Themes', 'Choose a theme', null, () => go('themes')),
             card('', 'Lock screen', 'Lock screen background', null, () => go('lockscreen')),
             card('', 'Start', 'Recommended files', null, () => go('start')),
-            card('', 'Taskbar', 'Alignment, search, icons', null, () => go('taskbar')));
+            card('', 'Taskbar', 'Taskbar items, system tray icons, behaviors', null, () => go('taskbar')));
         case 'background': {
           const upload = h('input', { type: 'file', accept: 'image/*', hidden: true, onChange: (e: Event) => {
             const file = (e.target as HTMLInputElement).files?.[0];
@@ -207,21 +209,40 @@ export const settingsApp: AppDef = {
         case 'start':
           return h('div', { class: 'ws-stack' },
             card('', 'Show recommended files in Start', 'Recent documents from your folders', toggle(s.startRecommended !== false, 'Recommended', (v) => { s.startRecommended = v; persist(); draw(); })));
-        case 'taskbar':
+        case 'taskbar': {
+          const t = taskbarPrefs();
+          const setTb = (patch: Parameters<typeof setTaskbar>[0]): void => { setTaskbar(patch); draw(); };
+          const sub = (title: string, desc: string, control: HTMLElement): HTMLElement => h('div', { class: 'ws-line ws-sub' }, h('span', { style: 'flex:1' }, h('span', { class: 'block' }, title), desc ? h('span', { class: 'muted block' }, desc) : null), control);
           return h('div', { class: 'ws-stack' },
-            card('', 'Taskbar alignment', '', select(a.taskbarAlign, [['center', 'Center'], ['left', 'Left']], (v) => setAppearance({ taskbarAlign: v as Appearance['taskbarAlign'] }), 'Taskbar alignment')),
-            card('', 'Search', 'Show the search button on the taskbar', toggle(s.taskbarSearch !== false, 'Search button', (v) => { s.taskbarSearch = v; persist(); notify(); draw(); })),
-            card('', 'Show seconds in system tray clock', '', toggle(y.clockSeconds, 'Seconds', (v) => setSys({ clockSeconds: v }))),
-            card('', 'Desktop icons', 'Show desktop icons', toggle(a.showDesktopIcons, 'Desktop icons', (v) => setAppearance({ showDesktopIcons: v }))),
-            card('', 'Desktop icon size', '', select(a.iconSize, [['small', 'Small icons'], ['medium', 'Medium icons'], ['large', 'Large icons']], (v) => setAppearance({ iconSize: v as Appearance['iconSize'] }), 'Icon size')));
+            group('Taskbar items',
+              sub('Search', 'Where search sits on the taskbar', select(t.search, [['hide', 'Hide'], ['icon', 'Search icon only'], ['iconLabel', 'Search icon and label'], ['box', 'Search box']], (v) => setTb({ search: v as SearchMode }), 'Search')),
+              sub('IAM Copilot', 'The Copilot button (Alt+C still opens it)', toggle(t.copilot, 'IAM Copilot button', (v) => setTb({ copilot: v }))),
+              sub('Task view', 'See every open window (Win+Tab)', toggle(t.taskView, 'Task view button', (v) => setTb({ taskView: v })))),
+            group('System tray icons',
+              sub('Pen menu', 'Screen Pen: draw on the screen, screenshot or record', toggle(t.penMenu, 'Pen menu', (v) => setTb({ penMenu: v })))),
+            group('Other system tray icons',
+              sub('Hidden icon menu', 'Off puts every icon below on the taskbar', toggle(t.hiddenIconMenu, 'Hidden icon menu', (v) => setTb({ hiddenIconMenu: v }))),
+              ...TRAY_ICONS.map(({ id, label }) => sub(label, t.hiddenIconMenu ? (t.trayIcons[id] ? 'On the taskbar' : 'In the hidden icons menu (^)') : 'On the taskbar (hidden icon menu is off)',
+                h('span', { class: t.hiddenIconMenu ? '' : 'ws-disabled' }, toggle(!t.hiddenIconMenu || t.trayIcons[id], label, (v) => { if (t.hiddenIconMenu) setTb({ trayIcons: { ...t.trayIcons, [id]: v } }); }))))),
+            group('Taskbar behaviors',
+              sub('Taskbar alignment', '', select(a.taskbarAlign, [['center', 'Center'], ['left', 'Left']], (v) => { setAppearance({ taskbarAlign: v as Appearance['taskbarAlign'] }); draw(); }, 'Taskbar alignment')),
+              sub('Automatically hide the taskbar', 'Point at the bottom of the screen to show it', toggle(t.autoHide, 'Automatically hide the taskbar', (v) => setTb({ autoHide: v }))),
+              sub('Show badges on taskbar apps', 'Counts on the IAM Copilot button', toggle(t.badges, 'Badges', (v) => setTb({ badges: v }))),
+              sub('Show flashing on taskbar apps', 'The Copilot button flashes when it has something new', toggle(t.flashing, 'Flashing', (v) => setTb({ flashing: v }))),
+              sub('Select the far corner of the taskbar to show the desktop', '', toggle(t.showDesktopCorner, 'Show desktop corner', (v) => setTb({ showDesktopCorner: v }))),
+              sub('Show seconds in system tray clock', '', toggle(y.clockSeconds, 'Seconds', (v) => { setSys({ clockSeconds: v }); draw(); })),
+              sub('Combine taskbar buttons and hide labels', 'Never gives every window its own labelled button', select(t.combine, [['always', 'Always'], ['whenFull', 'When taskbar is full'], ['never', 'Never']], (v) => setTb({ combine: v as CombineMode }), 'Combine taskbar buttons'))),
+            group('Desktop icons',
+              sub('Show desktop icons', '', toggle(a.showDesktopIcons, 'Desktop icons', (v) => { setAppearance({ showDesktopIcons: v }); draw(); })),
+              sub('Desktop icon size', '', select(a.iconSize, [['small', 'Small icons'], ['medium', 'Medium icons'], ['large', 'Large icons']], (v) => { setAppearance({ iconSize: v as Appearance['iconSize'] }); draw(); }, 'Icon size'))));
+        }
         case 'apps': {
-          const startup: [string, string][] = [['coach', 'IAM Coach'], ['notes', 'START-HERE.txt'], ['browser', 'Google Chrome (ServiceDesk)'], ['copilot', 'IAM Copilot'], ['terminal', 'Terminal']];
           return h('div', { class: 'ws-stack' },
             group('Default apps',
               h('div', { class: 'ws-line' }, h('span', { style: 'flex:1' }, 'When you open a .ps1 file'), select(y.ps1Action, [['run', 'Run with PowerShell'], ['edit', 'Edit in Windows PowerShell ISE'], ['notepad', 'Open in Notepad']], (v) => setSys({ ps1Action: v as SystemSettings['ps1Action'] }), '.ps1 files')),
               h('div', { class: 'ws-line' }, h('span', { style: 'flex:1' }, 'When you open a .bat or .cmd file'), select(y.batAction, [['run', 'Run in Command Prompt'], ['edit', 'Edit in Notepad']], (v) => setSys({ batAction: v as SystemSettings['batAction'] }), '.bat files'))),
             group('Startup', h('p', { class: 'muted' }, 'Apps that open when you sign in.'),
-              ...startup.map(([id, label]) => h('div', { class: 'ws-line' }, h('span', { style: 'flex:1' }, label), toggle(y.startupApps.includes(id), label, (v) => setSys({ startupApps: v ? [...y.startupApps, id] : y.startupApps.filter((x) => x !== id) }))))),
+              ...STARTUP_APPS.map(([id, label]) => h('div', { class: 'ws-line' }, h('span', { style: 'flex:1' }, label), toggle(y.startupApps.includes(id), label, (v) => setSys({ startupApps: v ? [...y.startupApps, id] : y.startupApps.filter((x) => x !== id) }))))),
             group('Installed apps',
               ...([['Active Directory Users and Computers (RSAT)', '10.0.22621'], ['Google Chrome', '129.0.6668.90'], ['Windows Terminal', '1.21.2911.0'], ['Remote Desktop Connection', '10.0.22621'], ['Windows PowerShell ISE', '10.0.22621'], ['Microsoft Graph PowerShell SDK', '2.25.0'], ['IAM Coach', appVersion], ['Notepad', '11.2409.9.0']] as [string, string][])
                 .map(([n, v]) => h('div', { class: 'ws-app' }, h('span', null, n), h('span', { class: 'muted' }, v)))));

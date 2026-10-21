@@ -7,6 +7,7 @@ import { fmt } from '../../core/time.ts';
 import { evidenceMarkdown } from '../../core/career.ts';
 import { DEPARTMENTS } from '../../world/company.ts';
 import { deliverMail } from '../../world/itsm.ts';
+import { labAccounts } from '../../world/labaccounts.ts';
 import { TEMPLATES, abandonScenario, checkScenario, startScenario, startShift, takeHint, templateById } from '../../scenarios/engine.ts';
 import { type ChatMessage, backdropProblems, chat, coachSystemPrompt, designScenario, gradeInterview, rewordTicket } from '../../ai/ollama.ts';
 import { badge, button, clear, h, markdown, toast } from '../dom.ts';
@@ -61,6 +62,8 @@ export const coachApp: AppDef = {
     let dept = '';
     let difficulty: 1 | 2 | 3 = 3;
     let focus = '';
+    let accounts = false;
+    let reveal = false;
 
     const start = (fn: () => ScenarioInstance | ScenarioInstance[], label: string): void => {
       let made: ScenarioInstance[] = [];
@@ -238,13 +241,32 @@ export const coachApp: AppDef = {
         mentor);
     }
 
+    function accountsView(): HTMLElement {
+      const rows = labAccounts(store.world);
+      const csv = ['Name,SamAccountName,UserPrincipalName,Department,OU,Password,Status,In Entra ID', ...rows.map((r) => [r.name, r.sam, r.upn, r.department, r.ou, r.password ?? '(unknown: reset it)', r.status, r.inEntra ? 'Yes' : 'No'].map((v) => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n');
+      return h('section', { class: 'detail' },
+        h('h2', null, 'Lab accounts'),
+        h('p', null, 'Passwords for testing a sign-in as an employee (Remote Desktop > verify a sign-in). Synced accounts use the same password in Entra ID and Okta. In a real company nobody can read a user\'s password: you reset it, and so do the labs.'),
+        h('p', { class: 'muted' }, `Your own accounts: admin and adm-admin use your sign-in password. Admin (adm-*), service (svc-*) and break-glass credentials are checked out from the PAM vault (https://vault.meridianhealth.test), which is part of the PAM labs. "Unknown" means the password was last set through Read-Host or by you without the range seeing it; reset it to get a known one.`),
+        h('div', { class: 'row' },
+          button(reveal ? 'Hide passwords' : 'Show passwords', () => { reveal = !reveal; draw(); }, 'btn primary'),
+          button('Download CSV', () => download('Meridian-Lab-Accounts.csv', csv)),
+          button('Back to labs', () => { accounts = false; draw(); })),
+        h('table', { class: 'grid' },
+          h('thead', null, h('tr', null, ['Name', 'Account', 'Department', 'OU', 'Password', 'Status', 'Entra ID'].map((c) => h('th', null, c)))),
+          h('tbody', null, rows.map((r) => h('tr', null,
+            h('td', null, r.name), h('td', null, r.sam), h('td', null, r.department), h('td', null, r.ou),
+            h('td', null, r.password ? (reveal ? h('code', null, r.password) : '••••••••••') : h('span', { class: 'muted' }, 'Unknown: reset it')),
+            h('td', null, r.status), h('td', null, r.inEntra ? 'Synced' : 'Not in cloud'))))));
+    }
+
     function draw(): void {
       clear(host);
       const all = [...store.world.scenarios].reverse();
       const active = all.filter((s) => s.status === 'active');
       const recent = all.filter((s) => s.status !== 'active').slice(0, 12);
       const sel = store.world.scenarios.find((s) => s.id === selected) ?? active[0] ?? recent[0];
-      const item = (s: ScenarioInstance): HTMLElement => h('button', { class: `scn ${s === sel ? 'on' : ''}`, type: 'button', onClick: () => { selected = s.id; draw(); } },
+      const item = (s: ScenarioInstance): HTMLElement => h('button', { class: `scn ${s === sel && !accounts ? 'on' : ''}`, type: 'button', onClick: () => { selected = s.id; accounts = false; draw(); } },
         h('span', { class: 'scn-title' }, s.title),
         h('span', { class: 'scn-meta' }, s.ticketIds[0] ?? 'Email', ' ', s.status === 'passed' ? badge('Passed', 'ok') : s.status === 'abandoned' ? badge('Answer shown', 'warn') : s.result ? badge(`${s.result.score}%`, '') : badge('Open', 'info')));
       host.appendChild(h('div', { class: 'coach' },
@@ -252,8 +274,10 @@ export const coachApp: AppDef = {
         h('div', { class: 'coach-main' },
           h('aside', { class: 'scn-list', 'aria-label': 'Scenarios' },
             h('h3', null, `In progress (${active.length})`), active.length ? active.map(item) : h('p', { class: 'muted' }, 'Nothing open. Start a lab or a shift above.'),
-            recent.length ? [h('h3', null, 'Recent'), recent.map(item)] : null),
-          sel ? detail(sel) : h('section', { class: 'detail' }, h('h2', null, 'Your first shift'), h('p', null, 'Start a lab above. The work arrives as a ticket in ServiceDesk (browser bookmark) or as an email. Read the policies, use ADUC, PowerShell and the admin portals, write work notes, resolve the ticket, then come back and check your work.')))));
+            recent.length ? [h('h3', null, 'Recent'), recent.map(item)] : null,
+            h('h3', null, 'Reference'),
+            h('button', { class: `scn ${accounts ? 'on' : ''}`, type: 'button', onClick: () => { accounts = true; draw(); } }, h('span', { class: 'scn-title' }, 'Lab accounts and passwords'), h('span', { class: 'scn-meta' }, 'For testing sign-ins'))),
+          accounts ? accountsView() : sel ? detail(sel) : h('section', { class: 'detail' }, h('h2', null, 'Your first shift'), h('p', null, 'Start a lab above. The work arrives as a ticket in ServiceDesk (browser bookmark) or as an email. Read the policies, use ADUC, PowerShell and the admin portals, write work notes, resolve the ticket, then come back and check your work.')))));
       const chatEl = host.querySelector('.mentor-log');
       if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
     }

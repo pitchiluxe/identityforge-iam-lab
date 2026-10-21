@@ -46,3 +46,20 @@ export function fmt(iso: string | null | undefined): string {
 export function fmtDate(iso: string | null | undefined): string {
   return fmt(iso).slice(0, 10);
 }
+
+/**
+ * Runs fn with the clock moved back to `iso`, still ticking. Scenario backdrops
+ * use it so things that happened before the ticket (an account created by the
+ * service desk two days ago, a first sign-in this morning) carry those times
+ * in every timestamp and audit event, not the moment the lab started.
+ */
+export function atTime<T>(iso: string, fn: () => T): T {
+  const prev = clock;
+  const offset = Date.parse(iso) - prev();
+  clock = () => prev() + offset;
+  try {
+    return fn();
+  } finally {
+    clock = prev;
+  }
+}
