@@ -44,7 +44,8 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
   let pending = '';
   let tabCycle: { base: string; hits: string[]; i: number } | null = null;
   const line = (text: string, cls = ''): void => { out.appendChild(h('div', { class: `ps-line ${cls}` }, text || ' ')); };
-  const setPrompt = (): void => { prompt.textContent = pending ? '>> ' : `PS ${sh.cwd}> `; };
+  // A missing mandatory parameter: PowerShell asks for it by name, as in a real console.
+  const setPrompt = (): void => { prompt.textContent = sh.pendingPrompt ? `${sh.pendingPrompt.param}: ` : pending ? '>> ' : `PS ${sh.cwd}> `; };
   if (!opts.compact) {
     line('Windows PowerShell');
     line('Copyright (C) Microsoft Corporation. All rights reserved.');
@@ -52,9 +53,9 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
     line('Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows');
     line('');
   }
-  const exec = (cmd: string): void => {
+  const exec = (cmd: string, answer = false): void => {
     sh.setWorld(store.world);
-    for (const l of sh.run(cmd)) {
+    for (const l of answer ? sh.answerPrompt(cmd) : sh.run(cmd)) {
       if (l.text === '\u0000CLEAR') { clear(out); continue; }
       if (l.text === '\u0000EXIT') { opts.onExit?.(); continue; }
       if (l.text.startsWith('\u0000OPEN:')) { openHook(l.text.slice(6)); continue; }
@@ -118,6 +119,7 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
       input.value = '';
       hist = -1;
       line(`${prompt.textContent}${cmd}`, 'echo');
+      if (sh.pendingPrompt) { exec(cmd, true); setPrompt(); (out.parentElement ?? out).scrollTop = 1e9; return; }
       const full = pending ? `${pending}\n${cmd}` : cmd;
       if (incomplete(full) && cmd.trim() !== '') { pending = full; setPrompt(); (out.parentElement ?? out).scrollTop = 1e9; return; }
       pending = '';
@@ -140,6 +142,7 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
       line(`${prompt.textContent}${input.value}^C`, 'echo');
       input.value = '';
       pending = '';
+      sh.pendingPrompt = null;
       setPrompt();
     } else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); clear(out); }
   });

@@ -1,6 +1,6 @@
 {
   "name": "meridian-iam-range",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "type": "module",
   "description": "Meridian IAM Range: a simulated Windows workstation for practising healthcare identity and access management.",
   "engines": {

@@ -14,12 +14,39 @@ export interface OutLine {
   color?: string;
 }
 
+export interface ErrorDetail {
+  /** The .NET exception Windows PowerShell names in CategoryInfo. */
+  exception?: string;
+  /** The first part of FullyQualifiedErrorId. */
+  errorId?: string;
+  /** The target in CategoryInfo, e.g. "taskinfo:String". */
+  target?: string;
+  /** The command the error belongs to, when it is raised before the cmdlet runs. */
+  source?: string;
+}
+
 export class PsError extends Error {
   category: string;
-  constructor(message: string, category = 'InvalidOperation') {
+  detail: ErrorDetail;
+  constructor(message: string, category = 'InvalidOperation', detail: ErrorDetail = {}) {
     super(message);
     this.category = category;
+    this.detail = detail;
   }
+}
+
+/** A mandatory parameter was not supplied. At the prompt PowerShell asks for it instead. */
+export class MissingParamError extends PsError {
+  param: string;
+  constructor(param: string) {
+    super(`Cannot process command because of one or more missing mandatory parameters: ${param}.`, 'InvalidArgument', { exception: 'ParameterBindingException', errorId: 'MissingMandatoryParameter' });
+    this.param = param;
+  }
+}
+
+/** The message PowerShell gives for a name that is not a cmdlet, function, script or program. */
+export function commandNotFound(name: string, source?: string): PsError {
+  return new PsError(`The term '${name}' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.`, 'ObjectNotFound', { exception: 'CommandNotFoundException', errorId: 'CommandNotFoundException', target: `${name}:String`, source });
 }
 
 /** Control flow: thrown, caught by the construct that owns it. */
@@ -88,6 +115,12 @@ export interface CmdletDef {
   module: 'ActiveDirectory' | 'ADSync' | 'Microsoft.Graph' | 'Core';
   synopsis: string;
   example?: string;
+  /**
+   * An executable (tasklist.exe, net.exe): no PowerShell parameter binding.
+   * Every argument arrives in `pos` as the text that was typed, as Windows
+   * passes a command line to a program.
+   */
+  native?: boolean;
   run(c: CmdletCtx): unknown;
 }
 
@@ -105,7 +138,8 @@ export function truthy(v: unknown): boolean {
 export function toStr(v: unknown): string {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'True' : 'False';
-  if (v instanceof Date) return v.toLocaleString('en-US');
+  // PowerShell prints dates without the comma: 10/20/2026 4:19:58 PM.
+  if (v instanceof Date) return v.toLocaleString('en-US').replace(',', '');
   if (Array.isArray(v)) return v.map(toStr).join(' ');
   if (v instanceof ScriptBlock) return v.text;
   if (typeof v === 'object' && !(v instanceof SecureStringValue)) {
@@ -186,6 +220,14 @@ export class Shell {
   errors: string[] = [];
   private filterObj: unknown = undefined;
   private depth = 0;
+  /**
+   * A mandatory parameter PowerShell is asking for ("Supply values for the
+   * following parameters"). The host shows `<param>: ` as the prompt and
+   * passes the answer to answerPrompt().
+   */
+  pendingPrompt: { cmd: string; param: string; line: string } | null = null;
+  /** The command a line consists of, when it is a single command: only then does PowerShell prompt. */
+  private promptable: CmdletDef | null = null;
 
   constructor(w: World, cmdlets: CmdletDef[]) {
     this.w = w;
@@ -207,6 +249,9 @@ export class Shell {
     this.lastLine = src.split('\n')[0]!.slice(0, 120);
     try {
       const prog = parse(src);
+      const only = prog.length === 1 ? prog[0]! : null;
+      const first = only && only.k === 'pipe' && only.cmds.length === 1 ? only.cmds[0]! : null;
+      this.promptable = first && first.k !== 'expr' ? this.cmdlets.get(first.name.toLowerCase()) ?? null : null;
       for (const st of prog) {
         const vals = this.execStmt(st, null);
         this.emitValues(vals);
@@ -216,8 +261,49 @@ export class Shell {
       else if (e instanceof ReturnSignal) this.emitValues(e.value);
       else if (e instanceof BreakSignal || e instanceof ContinueSignal) { /* outside a loop: ends the script, as in PowerShell */ }
       else this.emitError(e);
+    } finally {
+      this.promptable = null;
     }
     return this.out;
+  }
+
+  /**
+   * The answer typed at a "Supply values for the following parameters" prompt.
+   * Empty cancels with the error PowerShell gives; !? asks for help on the parameter.
+   */
+  answerPrompt(value: string): OutLine[] {
+    const p = this.pendingPrompt;
+    this.out = [];
+    if (!p) return this.out;
+    if (value.trim() === '!?') {
+      this.host(`-${p.param}: no help message is defined for this parameter. Run Get-Help ${p.cmd} for its syntax.`);
+      return this.out;
+    }
+    this.pendingPrompt = null;
+    if (!value.trim()) {
+      this.lastLine = p.line;
+      this.emitError(new MissingParamError(p.param), p.cmd);
+      return this.out;
+    }
+    const quoted = /^[\w*.@-]+$/.test(value) ? value : `'${value.replace(/'/g, "''")}'`;
+    const lines = this.run(`${p.line} -${p.param} ${quoted}`);
+    this.history.pop();
+    return lines;
+  }
+
+  /** The text a list of values prints as, for programs that read piped input (findstr). */
+  textOf(vals: unknown[]): string[] {
+    const saved = this.out;
+    this.out = [];
+    this.emitValues(vals);
+    const lines = this.out.map((l) => l.text);
+    this.out = saved;
+    return lines;
+  }
+
+  /** A program writing to stderr: PowerShell prints it as is. */
+  nativeError(text: string): void {
+    this.out.push({ text, kind: 'err' });
   }
 
   host(text: string, color?: string): void {
@@ -228,6 +314,11 @@ export class Shell {
     this.out.push({ text: `WARNING: ${text}`, kind: 'warn' });
   }
 
+  /**
+   * An error record as Windows PowerShell 5.1 prints it: the message (after the
+   * command name), the position, CategoryInfo with the .NET exception and the
+   * FullyQualifiedErrorId.
+   */
   emitError(e: unknown, cmd?: string): void {
     if (e instanceof ParseError) {
       this.out.push({ text: `ParserError: ${e.message}`, kind: 'err' });
@@ -235,10 +326,30 @@ export class Shell {
     }
     const msg = e instanceof Error ? e.message : String(e);
     this.errors.unshift(msg);
+    const d: ErrorDetail = e instanceof PsError ? e.detail : {};
     const category = e instanceof PsError ? e.category : /not found|cannot find/i.test(msg) ? 'ObjectNotFound' : /access|denied|insufficient/i.test(msg) ? 'PermissionDenied' : 'InvalidOperation';
-    this.out.push({ text: `${cmd ? `${cmd} : ` : ''}${msg}`, kind: 'err' });
-    if (this.lastLine) this.out.push({ text: `At line:1 char:1\n+ ${this.lastLine}\n+ ${'~'.repeat(Math.min(60, Math.max(1, this.lastLine.length)))}`, kind: 'err' });
-    this.out.push({ text: `    + CategoryInfo          : ${category}: (:) [${cmd ?? 'Script'}], ${category === 'ObjectNotFound' ? 'ADIdentityNotFoundException' : 'ADException'}`, kind: 'err' });
+    const name = cmd ?? d.source;
+    const def = name ? this.cmdlets.get(name.toLowerCase()) : undefined;
+    const notFound = d.exception === 'CommandNotFoundException';
+    const ad = def?.module === 'ActiveDirectory';
+    const exception = d.exception ?? (ad ? (category === 'ObjectNotFound' ? 'ADIdentityNotFoundException' : 'ADException')
+      : category === 'ObjectNotFound' ? 'ItemNotFoundException' : category === 'InvalidArgument' ? 'ParameterBindingException' : category === 'PermissionDenied' ? 'UnauthorizedAccessException' : 'RuntimeException');
+    const typeName = def ? def.name.replace(/-/g, '') : '';
+    const owner = !def ? '' : ad ? `Microsoft.ActiveDirectory.Management.Commands.${typeName}` : def.module === 'Microsoft.Graph' ? `Microsoft.Graph.PowerShell.Cmdlets.${typeName}` : `Microsoft.PowerShell.Commands.${typeName}Command`;
+    const errorId = notFound && !cmd ? 'CommandNotFoundException'
+      : d.errorId ? `${d.errorId}${owner ? `,${owner}` : ''}`
+      : ad ? `ActiveDirectoryCmdlet:Microsoft.ActiveDirectory.Management.${exception},${owner}`
+      : `${exception}${owner ? `,${owner}` : ''}`;
+    const shown = def?.name ?? name;
+    this.out.push({ text: `${shown ? `${notFound && !cmd ? name : shown} : ` : ''}${msg}`, kind: 'err' });
+    if (this.lastLine) {
+      const at = notFound && !cmd && name ? Math.max(0, this.lastLine.toLowerCase().indexOf(name.toLowerCase())) : 0;
+      const len = notFound && !cmd && name ? name.length : this.lastLine.length - at;
+      this.out.push({ text: `At line:1 char:${at + 1}\n+ ${this.lastLine}\n+ ${' '.repeat(at)}${'~'.repeat(Math.min(80, Math.max(1, len)))}`, kind: 'err' });
+    }
+    this.out.push({ text: `    + CategoryInfo          : ${category}: (${d.target ?? ':'}) [${notFound && !cmd ? '' : shown ?? ''}], ${exception}`, kind: 'err' });
+    this.out.push({ text: `    + FullyQualifiedErrorId : ${errorId}`, kind: 'err' });
+    this.out.push({ text: '', kind: 'err' });
   }
 
   // ------------------------------------------------------------- statements
@@ -362,10 +473,10 @@ export class Shell {
     if (/\.ps1$/i.test(name)) return this.runScriptFile(name, args);
     const fn = this.functions.get(name.toLowerCase());
     if (fn) return this.callFunction(fn, args, input);
-    const def = this.cmdlets.get(name.toLowerCase());
-    if (!def) {
-      throw new PsError(`The term '${name}' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again. (Type Get-Command to list what this range supports.)`, 'ObjectNotFound');
-    }
+    // PowerShell tries the Get- verb when nothing else matches: `date` runs Get-Date.
+    const def = this.cmdlets.get(name.toLowerCase()) ?? (name.includes('-') ? undefined : this.cmdlets.get(`get-${name.toLowerCase()}`));
+    if (!def) throw commandNotFound(name, name);
+    if (def.native) return this.invokeNative(def, args, input);
     const named: Record<string, unknown> = {};
     const pos: unknown[] = [];
     const all = [...(def.params ?? []), ...(def.switches ?? []), ...COMMON];
@@ -374,8 +485,8 @@ export class Shell {
       if (exact) return exact;
       const pre = all.filter((x) => x.toLowerCase().startsWith(p.toLowerCase()));
       if (pre.length === 1) return pre[0]!;
-      if (pre.length > 1) throw new PsError(`Parameter cannot be processed because the parameter name '${p}' is ambiguous. Possible matches include: ${pre.map((x) => `-${x}`).join(' ')}.`);
-      throw new PsError(`A parameter cannot be found that matches parameter name '${p}'.`, 'InvalidArgument');
+      if (pre.length > 1) throw new PsError(`Parameter cannot be processed because the parameter name '${p}' is ambiguous. Possible matches include: ${pre.map((x) => `-${x}`).join(' ')}.`, 'InvalidArgument', { exception: 'ParameterBindingException', errorId: 'AmbiguousParameter', source: def.name });
+      throw new PsError(`A parameter cannot be found that matches parameter name '${p}'.`, 'InvalidArgument', { exception: 'ParameterBindingException', errorId: 'NamedParameterNotFound', source: def.name });
     };
     for (const a of args) {
       if (a.k === 'named') {
@@ -385,7 +496,7 @@ export class Shell {
           named[key] = a.value && a.colon ? truthy(this.evalExpr(a.value)) : true;
           if (a.value && !a.colon) pos.push(this.evalArg(a.value));
         } else {
-          if (!a.value) throw new PsError(`Missing an argument for parameter '${key}'. Specify a parameter of the required type and try again.`, 'InvalidArgument');
+          if (!a.value) throw new PsError(`Missing an argument for parameter '${key}'. Specify a parameter of the required type and try again.`, 'InvalidArgument', { exception: 'ParameterBindingException', errorId: 'MissingArgument', source: def.name });
           named[key] = this.evalArg(a.value);
         }
       } else pos.push(this.evalArg(a.value));
@@ -399,7 +510,7 @@ export class Shell {
       has: (p) => n[p] !== undefined && n[p] !== false,
       str: (p, required) => {
         const v = n[p];
-        if ((v === undefined || v === null || v === '') && required) throw new PsError(`Cannot process command because of one or more missing mandatory parameters: ${p}.`, 'InvalidArgument');
+        if ((v === undefined || v === null || v === '') && required) throw new MissingParamError(p);
         const r = refOf(v);
         if (r && r.type !== 'event') return r.key;
         if (Array.isArray(v)) return v.map((x) => refOf(x)?.key ?? toStr(x)).join(',');
@@ -423,6 +534,38 @@ export class Shell {
       if (named.ErrorAction && /silentlycontinue|ignore/i.test(toStr(named.ErrorAction))) return [];
       // -ErrorAction Stop makes the error terminating, so try/catch sees it.
       if (named.ErrorAction && /^stop$/i.test(toStr(named.ErrorAction))) throw e;
+      if (e instanceof MissingParamError && this.promptable === def && this.depth <= 1 && !input) {
+        this.pendingPrompt = { cmd: def.name, param: e.param, line: this.lastLine };
+        this.host(`cmdlet ${def.name} at command pipeline position 1`);
+        this.host('Supply values for the following parameters:');
+        this.host('(Type !? for Help.)');
+        return [];
+      }
+      this.emitError(e, def.name);
+      return [];
+    }
+  }
+
+  /** A program: the typed arguments as text, piped input as the lines it would print. */
+  private invokeNative(def: CmdletDef, args: Arg[], input: unknown[] | null): unknown[] {
+    const pos: unknown[] = [];
+    for (const a of args) {
+      if (a.k === 'named') {
+        pos.push(`-${a.name}`);
+        if (a.value) pos.push(toStr(this.evalArg(a.value)));
+      } else {
+        const v = this.evalArg(a.value);
+        if (Array.isArray(v)) pos.push(...v.map(toStr)); else pos.push(toStr(v));
+      }
+    }
+    const ctx: CmdletCtx = {
+      shell: this, w: this.w, name: def.name, named: {}, pos, input: input ? this.textOf(input) : null, whatIf: false,
+      has: () => false, str: () => '',
+    };
+    try {
+      const r = def.run(ctx);
+      return r === undefined || r === null ? [] : Array.isArray(r) ? r : [r];
+    } catch (e) {
       this.emitError(e, def.name);
       return [];
     }
@@ -784,6 +927,8 @@ export class Shell {
       flush();
       if (Array.isArray(v)) { this.emitValues(v); continue; }
       if (v === null || v === undefined) continue;
+      // A date on its own prints in the long form: Tuesday, October 20, 2026 4:19:58 PM.
+      if (v instanceof Date) { this.out.push({ text: `${v.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} ${v.toLocaleTimeString('en-US')}`, kind: 'out' }); continue; }
       for (const l of toStr(v).split('\n')) this.out.push({ text: l, kind: 'out' });
     }
     flush();
@@ -792,7 +937,7 @@ export class Shell {
 
 export function cell(v: unknown): string {
   if (Array.isArray(v)) return `{${v.map(cell).join(', ')}}`;
-  if (v instanceof Date) return v.toLocaleString('en-US');
+  if (v instanceof Date) return toStr(v);
   return toStr(v).replace(/\n/g, ' ');
 }
 

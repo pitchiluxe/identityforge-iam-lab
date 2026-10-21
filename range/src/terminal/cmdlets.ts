@@ -17,7 +17,7 @@ import { getEntraUser, revokeSessions, runEntraSync } from '../world/cloud.ts';
 import { EXTRA_CMDLETS } from './cmdlets2.ts';
 import { readFile, writeFile } from '../world/docs.ts';
 import {
-  type CmdletCtx, type CmdletDef, Formatted, PsError, ScriptBlock, SecureStringValue, cell, formatDate, formatObjects,
+  type CmdletCtx, type CmdletDef, Formatted, MissingParamError, PsError, ScriptBlock, SecureStringValue, cell, commandNotFound, formatDate, formatObjects,
   getProp, refOf, toStr, truthy, withRef,
 } from './shell.ts';
 
@@ -32,7 +32,7 @@ function sidOf(seed: string): string {
 function guidOf(seed: string): string {
   let a = 0x12345, b = 0x6789;
   for (const ch of seed) { a = Math.imul(a ^ ch.charCodeAt(0), 2654435761) >>> 0; b = Math.imul(b ^ ch.charCodeAt(0), 1597334677) >>> 0; }
-  const hx = (a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0') + (a ^ b).toString(16).padStart(8, '0') + Math.imul(a, 7).toString(16).padStart(8, '0').replace('-', '')).slice(0, 32);
+  const hx = (a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0') + ((a ^ b) >>> 0).toString(16).padStart(8, '0') + (Math.imul(a, 7) >>> 0).toString(16).padStart(8, '0')).slice(0, 32);
   return `${hx.slice(0, 8)}-${hx.slice(8, 12)}-${hx.slice(12, 16)}-${hx.slice(16, 20)}-${hx.slice(20, 32)}`;
 }
 
@@ -128,7 +128,7 @@ function idList(v: unknown): string[] {
 
 function identity(c: CmdletCtx, param = 'Identity'): string {
   const v = c.named[param];
-  if (v === undefined || v === null || v === '') throw new PsError(`Cannot process command because of one or more missing mandatory parameters: ${param}.`, 'InvalidArgument');
+  if (v === undefined || v === null || v === '') throw new MissingParamError(param);
   const r = refOf(v);
   if (r) return r.key;
   const s = toStr(v);
@@ -240,7 +240,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const p = props(c);
       if (c.named.Identity !== undefined) return userObject(c.w, getUser(c.w, identity(c)), p);
-      if (c.named.Filter === undefined) throw new PsError('Cannot process command because of one or more missing mandatory parameters: Filter. (Use -Identity <name> or -Filter *)', 'InvalidArgument');
+      if (c.named.Filter === undefined) throw new MissingParamError('Filter');
       const inBase = searchBaseFilter(c);
       return c.w.ad.users.filter((u) => inBase(u.ou)).map((u) => userObject(c.w, u, '*')).filter((o) => c.shell.matches(c.named.Filter, o)).map((o) => userObject(c.w, getUser(c.w, refOf(o)!.key), p));
     },
@@ -251,7 +251,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const p = props(c);
       if (c.named.Identity !== undefined) return groupObject(c.w, getGroup(c.w, identity(c)), p);
-      if (c.named.Filter === undefined) throw new PsError('Cannot process command because of one or more missing mandatory parameters: Filter.', 'InvalidArgument');
+      if (c.named.Filter === undefined) throw new MissingParamError('Filter');
       return c.w.ad.groups.map((g) => groupObject(c.w, g, '*')).filter((o) => c.shell.matches(c.named.Filter, o)).map((o) => groupObject(c.w, getGroup(c.w, refOf(o)!.key), p));
     },
   },
@@ -441,7 +441,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const g = getGroup(c.w, identity(c));
       const members = idList(c.named.Members);
-      if (!members.length) throw new PsError('Cannot process command because of one or more missing mandatory parameters: Members.', 'InvalidArgument');
+      if (!members.length) throw new MissingParamError('Members');
       if (whatIf(c, 'Set', groupDn(g))) return;
       for (const m of members) addMember(c.w, g.name, m);
     },
@@ -452,7 +452,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const g = getGroup(c.w, identity(c));
       const members = idList(c.named.Members);
-      if (!members.length) throw new PsError('Cannot process command because of one or more missing mandatory parameters: Members.', 'InvalidArgument');
+      if (!members.length) throw new MissingParamError('Members');
       if (whatIf(c, 'Set', groupDn(g))) return;
       for (const m of members) removeMember(c.w, g.name, m);
     },
@@ -760,29 +760,109 @@ export const CMDLETS: CmdletDef[] = [
   { name: 'Get-Location', aliases: ['pwd'], module: 'Core', synopsis: 'Shows the current folder.', run: (c) => ({ Path: c.shell.cwd }) },
   { name: 'Clear-Host', aliases: ['cls', 'clear'], module: 'Core', synopsis: 'Clears the screen.', run(c) { c.shell.host('\u0000CLEAR'); } },
   { name: 'Import-Module', aliases: ['ipmo'], module: 'Core', params: ['Name'], positional: ['Name'], synopsis: 'Loads a module (ActiveDirectory and Microsoft.Graph are preloaded).', run: () => undefined },
-  { name: 'whoami', module: 'Core', synopsis: 'Shows the signed-in account.', run: (c) => `meridian\\${c.w.player.adminSam}` },
-  { name: 'hostname', module: 'Core', synopsis: 'Shows the computer name.', run: () => 'MHS-IAM-WKS01' },
   { name: 'Start-Sleep', module: 'Core', params: ['Seconds'], positional: ['Seconds'], synopsis: 'Waits (instant in the range).', run: () => undefined },
   {
-    name: 'Get-Command', aliases: ['gcm'], module: 'Core', params: ['Module', 'Name'], positional: ['Name'], synopsis: 'Lists the cmdlets this range supports.',
+    name: 'Get-Command', aliases: ['gcm'], module: 'Core', params: ['Name', 'Module', 'CommandType'], positional: ['Name'], synopsis: 'Lists the commands you can run: cmdlets, aliases and programs.',
+    example: 'Get-Command -Module ActiveDirectory',
     run(c) {
       const mod = c.named.Module === undefined ? null : toStr(c.named.Module).toLowerCase();
+      const type = c.named.CommandType === undefined ? null : toStr(c.named.CommandType).toLowerCase();
       const name = c.named.Name === undefined ? null : toStr(c.named.Name);
-      return CMDLETS.filter((d) => (!mod || d.module.toLowerCase() === mod) && (!name || new RegExp(`^${name.replace(/\*/g, '.*')}$`, 'i').test(d.name)))
-        .map((d) => ({ CommandType: 'Cmdlet', Name: d.name, Source: d.module }));
+      const like = (n: string): boolean => !name || new RegExp(`^${name.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i').test(n);
+      const rows: Record<string, unknown>[] = [];
+      for (const d of CMDLETS) {
+        if (mod && d.module.toLowerCase() !== mod) continue;
+        if (d.native) {
+          const exe = d.name.includes('.') ? d.name : `${d.name}.${d.name === 'tree' ? 'com' : 'exe'}`;
+          if (like(d.name) || like(exe)) rows.push({ CommandType: 'Application', Name: exe, Version: '10.0.22621.1', Source: `C:\\Windows\\system32\\${exe}` });
+          continue;
+        }
+        for (const al of d.aliases ?? []) if (!mod && /\w/.test(al) && like(al)) rows.push({ CommandType: 'Alias', Name: `${al} -> ${d.name}`, Version: '', Source: '' });
+        if (like(d.name)) rows.push({ CommandType: 'Cmdlet', Name: d.name, Version: VERSIONS[d.module], Source: d.module === 'Core' ? 'Microsoft.PowerShell.Management' : d.module });
+      }
+      for (const f of c.shell.functions.values()) if (!mod && like(f.name)) rows.push({ CommandType: 'Function', Name: f.name, Version: '', Source: '' });
+      const order = ['Alias', 'Function', 'Cmdlet', 'Application'];
+      const out = rows.filter((r) => !type || toStr(r.CommandType).toLowerCase() === type).sort((x, y) => order.indexOf(toStr(x.CommandType)) - order.indexOf(toStr(y.CommandType)) || toStr(x.Name).localeCompare(toStr(y.Name)));
+      if (!out.length && name && !/[*?]/.test(name)) throw commandNotFound(name);
+      return out;
     },
   },
   {
-    name: 'Get-Help', aliases: ['help', 'man'], module: 'Core', params: ['Name'], switches: ['Examples', 'Full'], positional: ['Name'], synopsis: 'Shows help for a cmdlet.',
+    name: 'Get-Help', aliases: ['help', 'man'], module: 'Core', params: ['Name'], switches: ['Examples', 'Full', 'Detailed'], positional: ['Name'], synopsis: 'Shows what a command does, its parameters and an example.',
+    example: 'Get-Help Get-ADUser -Examples',
     run(c) {
       const n = c.str('Name');
-      if (!n) return new Formatted(['', 'Type Get-Command to list cmdlets, then Get-Help <name> -Examples.', 'Start here: Get-ADUser, Search-ADAccount, Get-WinEvent, Start-ADSyncSyncCycle, Connect-MgGraph.', '']);
-      const d = CMDLETS.find((x) => x.name.toLowerCase() === n.toLowerCase() || x.aliases?.some((a) => a.toLowerCase() === n.toLowerCase()));
-      if (!d) throw new PsError(`Get-Help could not find ${n} in a help file in this session.`, 'ObjectNotFound');
-      return new Formatted(['', 'NAME', `    ${d.name}`, '', 'SYNOPSIS', `    ${d.synopsis}`, '', 'SYNTAX', `    ${d.name} ${[...(d.params ?? []).map((p) => `[-${p} <value>]`), ...(d.switches ?? []).map((s) => `[-${s}]`)].join(' ')}`, ...(d.example ? ['', 'EXAMPLE', `    PS C:\\> ${d.example}`] : []), '']);
+      if (!n) return new Formatted(helpCatalogue());
+      if (/[*?]/.test(n)) {
+        const re = new RegExp(`^${n.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
+        const hits = CMDLETS.filter((d) => re.test(d.name) || d.aliases?.some((al) => re.test(al)));
+        if (!hits.length) throw new PsError(`Get-Help could not find ${n} in a help file in this session.`, 'ResourceUnavailable', { exception: 'HelpNotFoundException', errorId: 'HelpNotFound' });
+        const w = Math.max(4, ...hits.map((d) => d.name.length));
+        return new Formatted(['', `${'Name'.padEnd(w)} ${'Category'.padEnd(11)} ${'Module'.padEnd(31)} Synopsis`, `${'----'.padEnd(w)} ${'--------'.padEnd(11)} ${'------'.padEnd(31)} --------`,
+          ...hits.map((d) => `${d.name.padEnd(w)} ${(d.native ? 'Application' : 'Cmdlet').padEnd(11)} ${(d.native ? '' : d.module === 'Core' ? 'Microsoft.PowerShell.Management' : d.module).padEnd(31)} ${d.synopsis}`), '']);
+      }
+      const d = CMDLETS.find((x) => x.name.toLowerCase() === n.toLowerCase() || x.aliases?.some((al) => al.toLowerCase() === n.toLowerCase()));
+      if (!d) throw new PsError(`Get-Help could not find ${n} in a help file in this session. To download updated help topics type: "Update-Help". To get help online, search for the help topic in the TechNet library at https://go.microsoft.com/fwlink/?LinkID=107116.`, 'ResourceUnavailable', { exception: 'HelpNotFoundException', errorId: 'HelpNotFound' });
+      return new Formatted(helpFor(d, c.has('Examples')));
     },
   },
 ];
 
 
 CMDLETS.push(...EXTRA_CMDLETS);
+
+const VERSIONS: Record<CmdletDef['module'], string> = { ActiveDirectory: '1.0.1.0', ADSync: '1.0.0.0', 'Microsoft.Graph': '2.25.0', Core: '3.1.0.0' };
+
+const SECTIONS: [string, (d: CmdletDef) => boolean][] = [
+  ['ACTIVE DIRECTORY (module ActiveDirectory)', (d) => d.module === 'ActiveDirectory'],
+  ['ENTRA CONNECT (module ADSync, runs on MHS-SYNC01 through Invoke-Command)', (d) => d.module === 'ADSync'],
+  ['ENTRA ID (module Microsoft.Graph; run Connect-MgGraph first)', (d) => d.module === 'Microsoft.Graph'],
+  ['FILES, PIPELINE AND SHELL', (d) => d.module === 'Core' && !d.native],
+  ['WINDOWS PROGRAMS (the same tools as in Command Prompt)', (d) => !!d.native],
+];
+
+/** `help` with no topic: every command this workstation has, grouped, one line each. */
+function helpCatalogue(): string[] {
+  const label = (d: CmdletDef): string => {
+    const short = (d.aliases ?? []).filter((al) => /^[a-z%?]/.test(al) && !al.includes('.')).slice(0, 3);
+    return short.length ? `${d.name} (${short.join(', ')})` : d.name;
+  };
+  const width = Math.min(44, Math.max(...CMDLETS.map((d) => label(d).length)));
+  const lines = ['', 'TOPIC', '    Commands on MHS-IAM-WKS01, the Meridian Health IAM Operations workstation.', ''];
+  for (const [title, pick] of SECTIONS) {
+    const list = CMDLETS.filter(pick).sort((x, y) => x.name.localeCompare(y.name));
+    if (!list.length) continue;
+    lines.push(title);
+    for (const d of list) lines.push(`    ${label(d).padEnd(width)}  ${d.synopsis}`);
+    lines.push('');
+  }
+  lines.push('MORE HELP',
+    `    ${'Get-Help <command>'.padEnd(width)}  Syntax, parameters and an example for one command`,
+    `    ${'Get-Help <command> -Examples'.padEnd(width)}  Only the example`,
+    `    ${'Get-Help *user*'.padEnd(width)}  Commands whose name matches`,
+    `    ${'Get-Command -Module ActiveDirectory'.padEnd(width)}  Every command in one module`,
+    `    ${'<command> | Get-Member'.padEnd(width)}  The properties the output objects have`,
+    '');
+  return lines;
+}
+
+/** Get-Help <name>, in the layout of Windows PowerShell's help. */
+function helpFor(d: CmdletDef, examplesOnly: boolean): string[] {
+  const example = d.example ? ['EXAMPLE', `    PS C:\\> ${d.example}`, ''] : [];
+  if (examplesOnly) return ['', 'NAME', `    ${d.name}`, '', 'SYNOPSIS', `    ${d.synopsis}`, '', ...(example.length ? example : ['EXAMPLE', '    (No example for this command.)', ''])];
+  const positional = d.positional ?? [];
+  const syntax = d.native
+    ? `${d.name} [arguments]`
+    : [d.name, ...(d.params ?? []).map((p) => positional.includes(p) ? `[[-${p}] <Object>]` : `[-${p} <Object>]`), ...(d.switches ?? []).map((sw) => `[-${sw}]`), '[<CommonParameters>]'].join(' ');
+  const params = d.native ? ['    Arguments are passed to the program as typed, as in Command Prompt.', '']
+    : [...(d.params ?? []).flatMap((p) => [`    -${p} <Object>`, `        Position?                    ${positional.includes(p) ? positional.indexOf(p) : 'named'}`, `        Accept pipeline input?       ${d.pipeParam === p ? 'True (ByValue)' : 'False'}`, '']),
+      ...(d.switches ?? []).flatMap((sw) => [`    -${sw} [<SwitchParameter>]`, '']),
+      '    <CommonParameters>', '        -Verbose, -ErrorAction, -WhatIf, -Confirm and the other common parameters.', ''];
+  return [
+    '', 'NAME', `    ${d.name}`, '', 'SYNOPSIS', `    ${d.synopsis}`, '', 'SYNTAX', `    ${syntax}`, '',
+    'PARAMETERS', ...params,
+    ...(d.aliases?.length ? ['ALIASES', `    ${d.aliases.join(', ')}`, ''] : []),
+    ...example,
+    'REMARKS', `    To see the examples, type: "get-help ${d.name} -examples".`, '',
+  ];
+}

@@ -4,7 +4,8 @@
  * commands that open other windows on the desktop.
  */
 import { copyFile, deleteFile, fileExists, readFile, renameFile, writeFile } from '../world/docs.ts';
-import { type CmdletDef, ExitSignal, PsError, cell, getProp, refOf, toStr, withRef } from './shell.ts';
+import { type CmdletCtx, type CmdletDef, ExitSignal, PsError, cell, getProp, refOf, toStr, withRef } from './shell.ts';
+import { CmdShell } from './cmd.ts';
 
 const OPEN = '\u0000OPEN:';
 
@@ -43,6 +44,35 @@ function toJson(v: unknown, depth: number): unknown {
   if (v instanceof Date) return `/Date(${v.getTime()})/`;
   if (Array.isArray(v)) return v.map((x) => toJson(x, depth - 1));
   return Object.fromEntries(Object.entries(v as object).map(([k, x]) => [k, toJson(x, depth - 1)]));
+}
+
+/** Windows programs PowerShell runs as it would on a real workstation: the same engine as Command Prompt. */
+const PROGRAMS: [string, string, string[]][] = [
+  ['tasklist', 'Lists running processes (tasklist.exe).', ['tasklist.exe']],
+  ['systeminfo', 'Shows the computer, operating system and domain (systeminfo.exe).', ['systeminfo.exe']],
+  ['net', 'Accounts, groups and shares: net user vhale /domain, net group "Domain Admins" /domain (net.exe).', ['net.exe', 'net1', 'net1.exe']],
+  ['nslookup', 'Looks a name up in the domain DNS (nslookup.exe).', ['nslookup.exe']],
+  ['ping', 'Tests whether a computer answers (ping.exe). Test-Connection is the cmdlet.', ['ping.exe']],
+  ['whoami', 'Shows the account this shell runs as: /groups, /upn, /fqdn, /all (whoami.exe).', ['whoami.exe']],
+  ['hostname', 'Shows the computer name (hostname.exe).', ['hostname.exe']],
+  ['gpupdate', 'Refreshes Group Policy: gpupdate /force (gpupdate.exe).', ['gpupdate.exe']],
+  ['gpresult', 'Shows the Group Policy and groups applied: gpresult /r (gpresult.exe).', ['gpresult.exe']],
+  ['klist', 'Lists the Kerberos tickets of this logon session (klist.exe).', ['klist.exe']],
+  ['tree', 'Draws the folder structure (tree.com).', ['tree.com']],
+  ['where.exe', 'Finds a program on the PATH. Type where.exe: in PowerShell, where means Where-Object.', []],
+];
+
+function runProgram(c: CmdletCtx, tool: string): string[] {
+  const asAdmin = tool === 'whoami' ? { user: c.w.player.adminSam, host: 'MHS-IAM-WKS01' } : undefined;
+  const sh = new CmdShell(c.w, { powershell: () => [], ask: () => null }, c.shell.cwd, asAdmin);
+  const line = [tool, ...c.pos.map((a) => (/\s/.test(toStr(a)) ? `"${toStr(a)}"` : toStr(a)))].join(' ');
+  const out: string[] = [];
+  for (const l of sh.run(line)) {
+    if (l.text.startsWith('\u0000')) continue;
+    if (l.kind === 'err') c.shell.nativeError(l.text);
+    else out.push(l.text);
+  }
+  return out;
 }
 
 export const EXTRA_CMDLETS: CmdletDef[] = [
@@ -173,7 +203,7 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
     },
   },
   {
-    name: 'Test-Connection', aliases: ['ping', 'ping.exe'], module: 'Core', params: ['ComputerName', 'Count'], positional: ['ComputerName'], synopsis: 'Pings a computer.',
+    name: 'Test-Connection', module: 'Core', params: ['ComputerName', 'Count'], positional: ['ComputerName'], synopsis: 'Pings a computer.',
     run(c) {
       const name = c.str('ComputerName', true).replace(/\.meridianhealth\.test$/i, '').toUpperCase();
       const comp = c.w.ad.computers.find((x) => x.name === name || x.ip === name);
@@ -214,4 +244,40 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
   { name: 'Write-Verbose', module: 'Core', params: ['Message'], positional: ['Message'], synopsis: 'Writes verbose output.', run(c) { if (c.has('Verbose')) c.shell.host(`VERBOSE: ${c.str('Message')}`, 'yellow'); } },
   { name: 'Out-String', module: 'Core', pipe: 'all', synopsis: 'Converts objects to text.', run: (c) => (c.input ?? []).map(toStr).join('\n') },
   { name: 'Get-ComputerInfo', module: 'Core', synopsis: 'Shows system information.', run: (c) => ({ CsName: 'MHS-IAM-WKS01', CsDomain: c.w.ad.domain, OsName: 'Microsoft Windows 11 Enterprise', OsVersion: '10.0.22631', OsBuildNumber: '22631', CsProcessors: 'Intel(R) Core(TM) i7-1265U', CsTotalPhysicalMemory: 17179869184, LogonServer: '\\\\MHS-DC01' }) },
+  ...PROGRAMS.map(([name, synopsis, aliases]): CmdletDef => ({ name, aliases, module: 'Core', native: true, synopsis, run: (c) => runProgram(c, name.replace(/\.exe$/, '')) })),
+  {
+    name: 'findstr', aliases: ['findstr.exe'], module: 'Core', native: true, synopsis: 'Shows the lines that contain a text: dir | findstr txt, findstr /i error <file>.',
+    run(c) {
+      const args = c.pos.map(toStr);
+      const flags = args.filter((a) => /^\/\w$/.test(a)).map((a) => a.toLowerCase());
+      const rest = args.filter((a) => !/^\/\w$/.test(a));
+      const pattern = rest.shift();
+      if (pattern === undefined) { c.shell.nativeError('FINDSTR: Bad command line'); return []; }
+      let lines = c.input;
+      if (!lines) {
+        const file = rest[0];
+        if (!file) { c.shell.nativeError('FINDSTR: Bad command line'); return []; }
+        try { lines = readFile(c.w, c.shell.resolvePath(file)).split('\n'); } catch { c.shell.nativeError(`FINDSTR: Cannot open ${file}`); return []; }
+      }
+      const ci = flags.includes('/i');
+      const words = pattern.split(/\s+/).filter(Boolean).map((x) => (ci ? x.toLowerCase() : x));
+      const hit = (l: string): boolean => words.some((x) => (ci ? l.toLowerCase() : l).includes(x));
+      return lines.map(toStr).filter((l) => hit(l) !== flags.includes('/v'));
+    },
+  },
+  {
+    name: 'Select-String', aliases: ['sls'], module: 'Core', params: ['Pattern', 'Path'], switches: ['SimpleMatch', 'CaseSensitive', 'NotMatch'], positional: ['Pattern', 'Path'], pipe: 'all',
+    synopsis: 'Finds text in piped output or in files (PowerShell\'s grep).', example: "Get-Content .\\Documents\\Exports\\IA-2026-14-enabled-accounts.csv | Select-String 'Nursing'",
+    run(c) {
+      const pattern = c.str('Pattern', true);
+      const re = c.has('SimpleMatch') ? null : new RegExp(pattern, c.has('CaseSensitive') ? '' : 'i');
+      const test = (l: string): boolean => (re ? re.test(l) : (c.has('CaseSensitive') ? l : l.toLowerCase()).includes(c.has('CaseSensitive') ? pattern : pattern.toLowerCase())) !== c.has('NotMatch');
+      if (c.named.Path !== undefined) {
+        const path = c.shell.resolvePath(c.str('Path'));
+        const name = path.split('\\').pop()!;
+        return readFile(c.w, path).replace(/\n$/, '').split('\n').flatMap((l, i) => (test(l) ? [`${name}:${i + 1}:${l}`] : []));
+      }
+      return c.shell.textOf(c.input ?? []).filter((l) => l.trim() && test(l));
+    },
+  },
 ];
