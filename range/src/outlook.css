@@ -1,0 +1,53 @@
+/* Outlook on the web (ui/sites/outlook.ts): light, three panes like the real one. */
+.ol { --ol-blue: #0f6cbd; --ol-line: #e1dfdd; --ol-text: #242424; --ol-muted: #616161; --ol-bg: #f5f5f5;
+  display: grid; grid-template-rows: auto 1fr; height: 100%; background: var(--ol-bg); color: var(--ol-text); font: 13px/1.45 'Segoe UI', system-ui, sans-serif; }
+.ol-top { display: flex; align-items: center; gap: 16px; padding: 8px 14px; background: var(--ol-blue); color: #fff; }
+.ol-top strong { font-size: 16px; font-weight: 600; }
+.ol-search { flex: 1; max-width: 520px; height: 30px; border: 0; border-radius: 4px; padding: 0 10px; background: #fff; color: var(--ol-text); font: inherit; }
+.ol-me { margin-left: auto; font-size: 12px; opacity: .9; }
+.ol-main { display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
+.ol-folders { display: flex; flex-direction: column; gap: 1px; padding: 10px 6px; border-right: 1px solid var(--ol-line); background: #fff; overflow: auto; }
+.ol-new { margin: 0 4px 10px; padding: 7px 10px; border: 0; border-radius: 4px; background: var(--ol-blue); color: #fff; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.ol-folders a { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; color: var(--ol-text); text-decoration: none; }
+.ol-folders a:hover { background: #f0f0f0; }
+.ol-folders a.on { background: #ebf3fc; font-weight: 600; }
+.ol-folders a.has-unread { font-weight: 600; }
+.ol-ic { font-family: var(--icons, 'Segoe Fluent Icons', 'Segoe MDL2 Assets'); font-size: 14px; color: var(--ol-muted); width: 16px; }
+.ol-count { margin-left: auto; color: var(--ol-blue); font-weight: 600; }
+.ol-panes { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; min-height: 0; }
+.ol-list { overflow: auto; border-right: 1px solid var(--ol-line); background: #fff; }
+.ol-list-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--ol-line); position: sticky; top: 0; background: #fff; }
+.ol-filter { margin-left: auto; font-size: 12px; color: var(--ol-muted); display: flex; gap: 4px; align-items: center; }
+.ol-link { border: 0; background: transparent; color: var(--ol-blue); cursor: pointer; font: inherit; font-size: 12px; }
+.ol-item { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; width: 100%; text-align: left; padding: 9px 12px 9px 14px; border: 0; border-bottom: 1px solid #f0f0f0; background: #fff; font: inherit; color: var(--ol-text); cursor: pointer; }
+.ol-item:hover { background: #f5f5f5; }
+.ol-item.on { background: #ebf3fc; }
+.ol-item.unread { box-shadow: inset 3px 0 0 var(--ol-blue); }
+.ol-item.unread .ol-who, .ol-item.unread .ol-subj, .ol-item.unread .ol-time { font-weight: 700; }
+.ol-item.unread .ol-subj, .ol-item.unread .ol-time { color: var(--ol-blue); }
+.ol-who { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ol-time { font-size: 12px; color: var(--ol-muted); }
+.ol-subj { grid-column: 1 / -1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ol-prev { grid-column: 1 / -1; font-size: 12px; color: var(--ol-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ol-flag { color: #c50f1f; }
+.ol-draft { color: #c50f1f; }
+.ol-empty { padding: 30px; text-align: center; color: var(--ol-muted); }
+.ol-read { overflow: auto; padding: 14px 22px 30px; background: #fff; }
+.ol-read-empty { display: grid; place-items: center; color: var(--ol-muted); background: var(--ol-bg); }
+.ol-read h2 { font-size: 20px; font-weight: 600; margin: 12px 0 8px; }
+.ol-cmds { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--ol-line); }
+.ol-cmd { border: 1px solid transparent; background: transparent; padding: 5px 10px; border-radius: 4px; color: var(--ol-text); font: inherit; cursor: pointer; }
+.ol-cmd:hover { background: #f0f0f0; border-color: var(--ol-line); }
+.ol-cmd.primary { background: var(--ol-blue); color: #fff; }
+.ol-cmd.danger { color: #c50f1f; }
+.ol-banner { background: #fff4ce; border: 1px solid #f7d36b; padding: 8px 10px; border-radius: 4px; margin: 8px 0; }
+.ol-from { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 14px; }
+.ol-avatar { width: 36px; height: 36px; border-radius: 50%; background: #c7e0f4; color: #0f548c; display: grid; place-items: center; font-weight: 600; flex: none; }
+.ol-meta { font-size: 12px; color: var(--ol-muted); }
+.ol-body { white-space: pre-wrap; font: 14px/1.55 'Segoe UI', system-ui, sans-serif; color: var(--ol-text); margin: 0; }
+.ol-compose { overflow: auto; padding: 14px 22px; background: #fff; display: grid; gap: 8px; align-content: start; }
+.ol-field { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; border-bottom: 1px solid var(--ol-line); padding-bottom: 6px; }
+.ol-field span { color: var(--ol-muted); }
+.ol-input { border: 0; outline: 0; background: #fff; color: var(--ol-text); font: inherit; padding: 4px 0; }
+.ol-compose-body { border: 1px solid var(--ol-line); border-radius: 4px; padding: 10px; resize: vertical; min-height: 260px; font-size: 14px; }
+@media (max-width: 860px) { .ol-main { grid-template-columns: 1fr; } .ol-folders { flex-direction: row; overflow-x: auto; } .ol-panes { grid-template-columns: 1fr; } .ol-me { display: none; } }

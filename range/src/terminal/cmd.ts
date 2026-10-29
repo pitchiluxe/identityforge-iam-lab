@@ -349,6 +349,58 @@ export class CmdShell {
         for (const f of files) { if (files.length > 1) this.print(`\n${f.slice(f.lastIndexOf('\\') + 1)}\n\n`); this.print(readFile(this.w, f).replace(/\r\n/g, '\n').replace(/\n$/, '')); }
         return;
       }
+      case 'more': {
+        const files = argv.flatMap((a) => this.glob(a));
+        if (!files.length) { this.err(argv.length ? `Cannot access file ${this.resolve(argv[0]!)}` : 'The syntax of the command is incorrect.'); return; }
+        for (const f of files) this.print(readFile(this.w, f).replace(/\r\n/g, '\n').replace(/\n$/, ''));
+        return;
+      }
+      case 'find': {
+        // find [/i] [/v] [/c] [/n] "text" file...
+        const flags = argv.filter((a) => /^\/[ivcn]$/i.test(a)).map((a) => a[1]!.toLowerCase());
+        const rest = argv.filter((a) => !/^\/[ivcn]$/i.test(a));
+        // The search text is always quoted on Windows; the quotes are not part of it.
+        const needle = rest[0]?.replace(/^"(.*)"$/, '$1');
+        if (!needle) { this.err('FIND: Parameter format not correct'); return; }
+        const files = rest.slice(1).flatMap((a) => this.glob(a));
+        if (!files.length) { this.err(rest[1] ? `File not found - ${rest[1].toUpperCase()}` : 'FIND: Parameter format not correct'); return; }
+        const ci = flags.includes('i');
+        for (const f of files) {
+          const lines = readFile(this.w, f).replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n');
+          const hits = lines.map((l, i) => ({ l, i })).filter(({ l }) => (ci ? l.toLowerCase().includes(needle.toLowerCase()) : l.includes(needle)) !== flags.includes('v'));
+          if (flags.includes('c')) { this.print(`---------- ${f.toUpperCase()}: ${hits.length}`); continue; }
+          this.print(`\n---------- ${f.toUpperCase()}`);
+          for (const { l, i } of hits) this.print(flags.includes('n') ? `[${i + 1}]${l}` : l);
+        }
+        return;
+      }
+      case 'attrib': {
+        const files = argv.length ? argv.filter((a) => !/^[+-\/]/.test(a)).flatMap((a) => this.glob(a)) : this.glob('*');
+        if (!files.length) { this.err(`File not found - ${argv[0] ?? '*'}`); return; }
+        for (const f of files) this.print(`A                    ${f}`);
+        return;
+      }
+      case 'vol':
+        this.print(' Volume in drive C has no label.\n Volume Serial Number is 6E2C-1A9F');
+        return;
+      case 'path':
+        if (argv.length) { this.err('Changing PATH is blocked by policy on this workstation.'); return; }
+        this.print('PATH=C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\;C:\\Windows\\System32\\OpenSSH\\');
+        return;
+      case 'netstat':
+        this.print([
+          '', 'Active Connections', '',
+          '  Proto  Local Address          Foreign Address        State',
+          `  TCP    10.10.20.15:49702      MHS-DC01:ldap          ESTABLISHED`,
+          `  TCP    10.10.20.15:49705      MHS-DC01:microsoft-ds  ESTABLISHED`,
+          `  TCP    10.10.20.15:49711      MHS-FS01:microsoft-ds  ESTABLISHED`,
+          `  TCP    10.10.20.15:49733      MHS-DC01:kerberos      TIME_WAIT`,
+          `  TCP    10.10.20.15:49760      outlook.office365:https  ESTABLISHED`,
+        ].join('\n'));
+        return;
+      case 'calc': case 'calc.exe':
+        this.out.push({ text: '\u0000OPEN:app:calc' });
+        return;
       case 'copy': case 'xcopy': {
         const [src, dst] = argv.filter((a) => !a.startsWith('/'));
         if (!src) { this.err('The syntax of the command is incorrect.'); return; }

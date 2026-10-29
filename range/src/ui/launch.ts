@@ -6,6 +6,7 @@ import { openApp } from './wm.ts';
 import { notepadApp, powershellWindow, explorerApp, eventViewerApp, setPowerShellOpener, setFileOpener } from './apps/tools.ts';
 import { iseApp } from './apps/ise.ts';
 import { batchWindow, terminalApp, terminalWindow } from './apps/terminal.ts';
+import { calculatorApp } from './apps/calculator.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { securityApp } from './apps/security.ts';
 import { markdownApp } from './apps/markdown.ts';
@@ -43,6 +44,7 @@ export function openFile(path: string, mode: OpenMode = 'open'): void {
 export function openProgram(name: string): void {
   const n = name.toLowerCase();
   if (n === 'notepad') return openApp(notepadApp(''));
+  if (n === 'calc' || n === 'calc.exe' || n === 'calculator') return openApp(calculatorApp);
   if (n === 'wt' || n === 'terminal') return openApp(terminalApp, undefined, false);
   if (n === 'cmd' || n === 'cmd.exe') return openApp(terminalWindow({ profile: 'cmd' }), undefined, false);
   if (n === 'mstsc' || n === 'mstsc.exe') return openApp(rdpApp);

@@ -42,7 +42,7 @@
  * key-value lists) read the theme variables, so reset those to the light values
  * here; otherwise dark mode puts dark text on dark boxes.
  */
-.sn, .az {
+.sn, .az, .ol {
   --accent: #005fb8; --accent-hover: #1a6ec0; --accent-ink: #ffffff;
   --bg: #f3f3f3; --win-bg: #f9f9f9; --layer: #ffffff; --layer-2: #f6f6f6; --ink: #1a1a1a; --ink-2: #5c5c5c;
   --line: #e5e5e5; --line-strong: #d1d1d1; --hover: rgba(0, 0, 0, 0.04); --press: rgba(0, 0, 0, 0.07); --select: #e5f1fb;

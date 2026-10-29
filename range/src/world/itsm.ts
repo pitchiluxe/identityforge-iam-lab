@@ -135,12 +135,75 @@ export function reportPhishing(w: World, id: string): MailMessage {
   return m;
 }
 
-export function sendMail(w: World, to: string, subject: string, body: string): MailMessage {
-  if (!to.trim() || !subject.trim()) throw new ItsmError('To and Subject are required.');
-  const msg: MailMessage = { id: `msg-${++w.counters.mail}`, from: w.player.sam + '@meridianhealth.test', fromName: w.player.displayName, to: to.trim(), subject: subject.trim(), body, time: nowIso(), read: true, folder: 'Sent', external: false };
+export function sendMail(w: World, to: string, subject: string, body: string, opts: { cc?: string; draftId?: string } = {}): MailMessage {
+  if (!to.trim()) throw new ItsmError('Add at least one recipient in To.');
+  if (!subject.trim()) throw new ItsmError('Add a subject before you send.');
+  const cc = opts.cc?.trim() || undefined;
+  const msg: MailMessage = { id: `msg-${++w.counters.mail}`, from: w.player.sam + '@meridianhealth.test', fromName: w.player.displayName, to: to.trim(), cc, subject: subject.trim(), body, time: nowIso(), read: true, folder: 'Sent', external: false };
   w.mail.push(msg);
-  audit(w, { source: 'Mail', action: 'Message sent', target: to.trim(), actor: w.player.sam, detail: subject.trim() });
+  if (opts.draftId) w.mail = w.mail.filter((m) => m.id !== opts.draftId);
+  // One event per recipient, so every address a message went to is in the audit.
+  for (const r of [to, cc ?? ''].join(';').split(/[;,]/).map((x) => x.trim()).filter(Boolean)) {
+    audit(w, { source: 'Mail', action: 'Message sent', target: r, actor: w.player.sam, detail: subject.trim() });
+  }
   return msg;
+}
+
+function mail(w: World, id: string): MailMessage {
+  const m = w.mail.find((x) => x.id === id);
+  if (!m) throw new ItsmError('Message not found.');
+  return m;
+}
+
+export function markMailRead(w: World, id: string, read: boolean): MailMessage {
+  const m = mail(w, id);
+  m.read = read;
+  return m;
+}
+
+export function flagMail(w: World, id: string, flagged: boolean): MailMessage {
+  const m = mail(w, id);
+  m.flagged = flagged;
+  return m;
+}
+
+/** Move to another folder. Reported is reserved for Report phishing; Drafts and Sent are where Outlook puts mail. */
+export function moveMail(w: World, id: string, folder: 'Inbox' | 'Archive' | 'Junk' | 'Deleted'): MailMessage {
+  const m = mail(w, id);
+  if (m.folder === 'Drafts' || m.folder === 'Sent') { if (folder !== 'Deleted') throw new ItsmError(`Items in ${m.folder} can only be deleted.`); }
+  m.folder = folder;
+  return m;
+}
+
+/** Delete: to Deleted Items; deleting from Deleted Items removes it for good, as Outlook does. */
+export function deleteMail(w: World, id: string): void {
+  const m = mail(w, id);
+  if (m.folder === 'Deleted') w.mail = w.mail.filter((x) => x !== m);
+  else { m.folder = 'Deleted'; m.read = true; }
+}
+
+export function emptyDeletedItems(w: World): number {
+  const n = w.mail.filter((m) => m.folder === 'Deleted').length;
+  w.mail = w.mail.filter((m) => m.folder !== 'Deleted');
+  return n;
+}
+
+/** Save (or update) a draft. Drafts are not sent and are not audited. */
+export function saveDraft(w: World, d: { id?: string; to: string; cc: string; subject: string; body: string }): MailMessage {
+  const existing = d.id ? w.mail.find((m) => m.id === d.id && m.folder === 'Drafts') : undefined;
+  if (existing) { Object.assign(existing, { to: d.to.trim(), cc: d.cc.trim() || undefined, subject: d.subject.trim(), body: d.body, time: nowIso() }); return existing; }
+  const msg: MailMessage = { id: `msg-${++w.counters.mail}`, from: w.player.sam + '@meridianhealth.test', fromName: w.player.displayName, to: d.to.trim(), cc: d.cc.trim() || undefined, subject: d.subject.trim(), body: d.body, time: nowIso(), read: true, folder: 'Drafts', external: false };
+  w.mail.push(msg);
+  return msg;
+}
+
+/** Reply, reply all and forward: Outlook's subject prefix and the quoted original underneath. */
+export function quoteForReply(m: MailMessage, kind: 'reply' | 'replyAll' | 'forward'): { to: string; cc: string; subject: string; body: string } {
+  const prefix = kind === 'forward' ? 'FW: ' : 'RE: ';
+  const subject = /^(re|fw|fwd):\s/i.test(m.subject) && m.subject.slice(0, 4).toUpperCase() === prefix ? m.subject : `${prefix}${m.subject.replace(/^(re|fw|fwd):\s*/i, '')}`;
+  const header = ['', '', '________________________________', `From: ${m.fromName} <${m.from}>`, `Sent: ${new Date(m.time).toUTCString()}`, `To: ${m.to}`, ...(m.cc ? [`Cc: ${m.cc}`] : []), `Subject: ${m.subject}`, '', m.body].join('\n');
+  const others = kind === 'replyAll' ? [m.to, m.cc ?? ''].join(';').split(/[;,]/).map((x) => x.trim()).filter((x) => x && x.toLowerCase() !== m.from.toLowerCase()) : [];
+  return { to: kind === 'forward' ? '' : m.from, cc: others.join('; '), subject, body: header };
 }
 
 // ------------------------------------------------------------------------- HR

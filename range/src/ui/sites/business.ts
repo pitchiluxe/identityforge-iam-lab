@@ -4,10 +4,10 @@
 import { careChartSsoPanel } from './sso.ts';
 import { fmt, fmtDate } from '../../core/time.ts';
 import type { Worker } from '../../core/types.ts';
-import { workerName, reportPhishing, sendMail } from '../../world/itsm.ts';
+import { workerName } from '../../world/itsm.ts';
 import { setSaasAccount, setSaasRole } from '../../world/cloud.ts';
 import { homeDir } from '../../world/docs.ts';
-import { badge, button, field, h, markdown, table } from '../dom.ts';
+import { badge, button, h, markdown, table } from '../dom.ts';
 import { act, store } from '../store.ts';
 import { type Site, empty, kv, link, shell } from './common.ts';
 
@@ -67,45 +67,8 @@ export const peopleHub: Site = {
 
 // ------------------------------------------------------------------- Mail
 
-export const webMail: Site = {
-  host: 'mail.meridianhealth.test',
-  name: 'Outlook on the web',
-  short: 'Mail',
-  color: '#245fa0',
-  render(ctx) {
-    const w = store.world;
-    const folder = ctx.path.startsWith('/sent') ? 'Sent' : ctx.path.startsWith('/reported') ? 'Reported' : 'Inbox';
-    const nav: [string, string][] = [[`Inbox (${w.mail.filter((m) => m.folder === 'Inbox' && !m.read).length} unread)`, '/'], ['Sent', '/sent'], ['Reported', '/reported'], ['New message', '/compose']];
-    let content: HTMLElement;
-    const m = /^\/msg\/(.+)$/.exec(ctx.path);
-    if (m) {
-      const msg = w.mail.find((x) => x.id === m[1]);
-      if (msg && !msg.read) { msg.read = true; queueMicrotask(() => act(() => {})); }
-      content = !msg ? empty('Message not found.') : h('div', { class: 'mail' },
-        link('← Back', () => ctx.go(msg.folder === 'Inbox' ? '/' : `/${msg.folder.toLowerCase()}`)),
-        msg.external ? h('p', { class: 'banner warn' }, 'External sender: this message came from outside Meridian Health System. Do not act on requests in it without verifying through a known channel.') : null,
-        h('h2', null, msg.subject),
-        kv([['From', `${msg.fromName} <${msg.from}>`], ['To', msg.to], ['Received', fmt(msg.time)]]),
-        h('pre', { class: 'desc' }, msg.body),
-        msg.folder === 'Inbox' ? h('div', { class: 'row' },
-          button('Report phishing', () => act((x) => reportPhishing(x, msg.id), 'Reported to Security. The message was moved to Reported.'), 'btn danger'),
-          button('Reply', () => ctx.go(`/compose/${msg.id}`))) : null);
-    } else if (ctx.path.startsWith('/compose')) {
-      const re = w.mail.find((x) => x.id === ctx.path.split('/')[2]);
-      const to = h('input', { class: 'input', value: re ? re.from : '', 'aria-label': 'To' });
-      const subject = h('input', { class: 'input', value: re ? `RE: ${re.subject}` : '', 'aria-label': 'Subject' });
-      const body = h('textarea', { class: 'input', rows: '8', 'aria-label': 'Message' });
-      content = h('div', { class: 'stack narrow' }, h('h2', null, 'New message'), field('To', to), field('Subject', subject), field('Message', body),
-        button('Send', () => { if (act((x) => sendMail(x, to.value, subject.value, body.value), 'Sent')) ctx.go('/sent'); }, 'btn primary'));
-    } else {
-      const msgs = w.mail.filter((x) => x.folder === folder).sort((a, b) => b.time.localeCompare(a.time));
-      content = h('div', null, h('h2', null, folder), msgs.length
-        ? table(['From', 'Subject', 'Received'], msgs.map((x) => [h(x.read ? 'span' : 'strong', null, x.fromName), h(x.read ? 'span' : 'strong', null, x.subject), fmt(x.time)]), (i) => ctx.go(`/msg/${msgs[i]!.id}`))
-        : empty(folder === 'Inbox' ? 'Inbox is empty.' : 'Nothing here.'));
-    }
-    return shell(this, nav, ctx, content, `${w.player.sam}@meridianhealth.test`);
-  },
-};
+/** Outlook on the web lives in ./outlook.ts. */
+export { outlook as webMail } from './outlook.ts';
 
 // ------------------------------------------------------------------- Wiki
 

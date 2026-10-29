@@ -2,6 +2,8 @@ import './styles.css';
 import './shell.css';
 import './azure.css';
 import './servicenow.css';
+import './outlook.css';
+import './calculator.css';
 import { buildDesktop, firstRun, lockScreen } from './ui/desktop.ts';
 import { refreshAi } from './ui/aiState.ts';
 import { startSchedulers } from './ui/store.ts';

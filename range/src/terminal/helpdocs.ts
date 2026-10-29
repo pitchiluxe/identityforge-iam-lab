@@ -115,6 +115,11 @@ export const HELP: Record<string, HelpDoc> = {
   'Measure-Object': { synopsis: 'Calculates the numeric properties of objects, and the characters, words, and lines in string objects, such as files of text.' },
   'Move-Item': { synopsis: 'Moves an item from one location to another.' },
   'New-Item': { synopsis: 'Creates a new item.' },
+  // Built-in functions of Windows PowerShell 5.1 (Get-Command -CommandType Function).
+  'cd..': { synopsis: 'Changes the current location to the parent of the current location.' },
+  'cd\\': { synopsis: 'Changes the current location to the root of the current drive.' },
+  'mkdir': { synopsis: 'Creates a new directory.' },
+  'calc': { synopsis: 'Starts Calculator (calc.exe).' },
   'New-TimeSpan': { synopsis: 'Creates a TimeSpan object.' },
   'Out-Host': { synopsis: 'Sends output to the command line.' },
   'Out-Null': { synopsis: 'Hides the output instead of sending it down the pipeline or displaying it.' },

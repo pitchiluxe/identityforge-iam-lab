@@ -62,6 +62,15 @@ const PROGRAMS: [string, string, string[]][] = [
   ['where.exe', 'Finds a program on the PATH. Type where.exe: in PowerShell, where means Where-Object.', []],
 ];
 
+/** Change folder the way Set-Location does: the folder has to exist. */
+function setCwd(c: CmdletCtx, p: string): void {
+  const root = /^C:\\?$/i.test(p);
+  if (!root && !c.w.files.some((f) => f.path.toLowerCase().startsWith(p.toLowerCase() + '\\')) && !/^C:\\Users(\\[^\\]+)?$/i.test(p)) {
+    throw new PsError(`Cannot find path '${p}' because it does not exist.`, 'ObjectNotFound', { exception: 'ItemNotFoundException', errorId: 'PathNotFound' });
+  }
+  c.shell.cwd = root ? 'C:\\' : p;
+}
+
 function runProgram(c: CmdletCtx, tool: string): string[] {
   const asAdmin = tool === 'whoami' ? { user: c.w.player.adminSam, host: 'MHS-IAM-WKS01' } : undefined;
   const sh = new CmdShell(c.w, { powershell: () => [], ask: () => null }, c.shell.cwd, asAdmin);
@@ -92,6 +101,19 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
       c.shell.host(`${OPEN}file:${path}`);
     },
   },
+  // Windows PowerShell defines these as functions, so they work without a space.
+  { name: 'cd..', module: 'Core', synopsis: 'Goes up one folder (Set-Location ..).', run(c) { setCwd(c, c.shell.resolvePath('..')); } },
+  { name: 'cd\\', module: 'Core', synopsis: 'Goes to the root of the drive (Set-Location \\).', run(c) { c.shell.cwd = 'C:\\'; } },
+  {
+    name: 'mkdir', aliases: ['md'], module: 'Core', params: ['Path', 'Name'], positional: ['Path'], synopsis: 'Creates a folder (New-Item -ItemType Directory).',
+    run(c) {
+      let path = c.shell.resolvePath(c.str('Path', true));
+      if (c.named.Name !== undefined) path = `${path}\\${c.str('Name')}`;
+      writeFile(c.w, `${path}\\desktop.ini`, '');
+      return { Mode: 'd-----', LastWriteTime: new Date(), Length: '', Name: path.split('\\').pop() };
+    },
+  },
+  { name: 'calc', aliases: ['calc.exe'], module: 'Core', native: true, synopsis: 'Opens Calculator (calc.exe).', run(c) { c.shell.host('\u0000OPEN:app:calc'); } },
   {
     name: 'New-Item', aliases: ['ni'], module: 'Core', params: ['Path', 'Name', 'ItemType', 'Value'], positional: ['Path'],
     synopsis: 'Creates a file.', run(c) {

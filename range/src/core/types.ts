@@ -446,9 +446,14 @@ export interface MailMessage {
   body: string;
   time: string;
   read: boolean;
-  folder: 'Inbox' | 'Sent' | 'Reported';
+  folder: MailFolder;
   external: boolean;
+  cc?: string;
+  flagged?: boolean;
 }
+
+/** Outlook's folders; Reported holds messages sent to Security as phishing. */
+export type MailFolder = 'Inbox' | 'Drafts' | 'Sent' | 'Deleted' | 'Junk' | 'Archive' | 'Reported';
 
 // ---------------------------------------------------------------- Files and audit
 

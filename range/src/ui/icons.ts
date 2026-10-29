@@ -125,6 +125,11 @@ const APP = {
   eventviewer:
     '<rect x="9" y="5" width="30" height="38" rx="2" fill="#fff" stroke="#6f7a86" stroke-width="1.4"/><path d="M14 13h20M14 18h20M14 23h14" stroke="#9aa3ad" stroke-width="2"/>' +
     '<path d="M27 25l11 19H16z" fill="#f7c600" stroke="#a37e00"/><rect x="26" y="31" width="2.4" height="7" fill="#222"/><circle cx="27.2" cy="40.5" r="1.3" fill="#222"/>',
+  calculator:
+    '<rect x="9" y="5" width="30" height="38" rx="4" fill="#3b3a39"/><rect x="13" y="9" width="22" height="8" rx="1.5" fill="#c7e0f4"/>' +
+    '<rect x="13" y="21" width="6" height="5" rx="1" fill="#fff"/><rect x="21" y="21" width="6" height="5" rx="1" fill="#fff"/><rect x="29" y="21" width="6" height="5" rx="1" fill="#f7a35c"/>' +
+    '<rect x="13" y="28" width="6" height="5" rx="1" fill="#fff"/><rect x="21" y="28" width="6" height="5" rx="1" fill="#fff"/><rect x="29" y="28" width="6" height="5" rx="1" fill="#f7a35c"/>' +
+    '<rect x="13" y="35" width="14" height="5" rx="1" fill="#fff"/><rect x="29" y="35" width="6" height="5" rx="1" fill="#4aa0e6"/>',
   notepad:
     '<rect x="9" y="5" width="30" height="38" rx="2" fill="#fff" stroke="#6f7a86" stroke-width="1.4"/><rect x="9" y="5" width="30" height="7" rx="2" fill="#4aa0e6"/>' +
     '<path d="M14 18h20M14 23h20M14 28h20M14 33h13" stroke="#9aa3ad" stroke-width="2"/>',

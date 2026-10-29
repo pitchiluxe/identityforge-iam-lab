@@ -22,6 +22,7 @@ import { eventViewerApp, explorerApp, fileMenu, newMenu, notepadApp, powershellA
 import { iseApp } from './apps/ise.ts';
 import { terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
+import { calculatorApp } from './apps/calculator.ts';
 import { securityApp } from './apps/security.ts';
 import { screenPenApp, toggleScreenPen } from './pen.ts';
 import { wordStartApp } from './apps/word.ts';
@@ -42,7 +43,7 @@ import { type TrayIconId, trayPlacement } from '../core/taskbar.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp, taskManagerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, calculatorApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp, taskManagerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
