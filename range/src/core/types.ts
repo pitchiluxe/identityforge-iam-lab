@@ -66,6 +66,8 @@ export interface AdComputer {
   /** sam of the person who usually signs in on it. */
   primaryUser: string | null;
   ip: string;
+  /** Free text, e.g. "Reclaimed from Ana Ruiz" after the user was deleted. */
+  description?: string;
 }
 
 export interface Directory {
@@ -109,6 +111,8 @@ export interface EntraUser {
   upn: string;
   displayName: string;
   source: 'synced' | 'cloud';
+  /** Guest for B2B collaborators; absent means Member. */
+  userType?: 'Member' | 'Guest';
   /** sam of the AD object this was synced from. */
   onPremSam: string | null;
   accountEnabled: boolean;
@@ -125,6 +129,39 @@ export interface EntraUser {
   licenses: string[];
   riskLevel: 'none' | 'low' | 'medium' | 'high';
   deleted: boolean;
+  /** Cloud-only lab accounts: the current password, so the Azure portal sign-in can be tested. */
+  labPassword?: string;
+  mustChangePassword?: boolean;
+  /** Two-letter country; licences need it. Cloud-side, so editable on synced users too. */
+  usageLocation?: string;
+  /** Licences assigned to the user directly (kept by sync; group-based ones are recomputed). */
+  directLicenses?: string[];
+  /** The current Temporary Access Pass, if one was issued (world/authMethods.ts). */
+  tap?: { code: string; expires: string; oneTime: boolean; used: boolean };
+}
+
+/** A cloud-only group created in Entra (synced AD groups are tracked by name in EntraTenant.groups). */
+export interface CloudGroup {
+  id: string;
+  name: string;
+  type: 'Security' | 'Microsoft 365';
+  description: string;
+  owners: string[];
+  created: string;
+}
+
+export interface AdminUnit {
+  id: string;
+  name: string;
+  description: string;
+  members: string[];
+  scopedRoles: { upn: string; role: string }[];
+  created: string;
+}
+
+export interface TenantLicense {
+  sku: string;
+  total: number;
 }
 
 export interface SignIn {
@@ -166,6 +203,20 @@ export interface EntraApp {
   saasId: string | null;
   /** SAML or OIDC configuration, on both sides of the trust (see world/federation.ts). */
   fed?: AppFederation;
+  /** UPNs who own the enterprise app (may manage its assignments). */
+  owners?: string[];
+}
+
+/** An app registration (MSP company tenants, world/apps.ts). */
+export interface AppRegistration {
+  appId: string;
+  objectId: string;
+  name: string;
+  owners: string[];
+  redirectUris: string[];
+  secrets: { id: string; description: string; created: string; expires: string }[];
+  permissions: { api: string; name: string; type: 'Delegated' | 'Application'; consented: boolean }[];
+  created: string;
 }
 
 export interface SamlCert { thumbprint: string; created: string; expires: string; active: boolean }
@@ -207,7 +258,35 @@ export interface SyncError {
   detail: string;
 }
 
+/** A device registered in Entra ID (MSP companies: workstations, hybrid-joined by Entra Connect). */
+export interface EntraDevice {
+  id: string;
+  name: string;
+  trustType: 'Hybrid Azure AD joined';
+  ownerUpn: string | null;
+  accountEnabled: boolean;
+  os: string;
+  registered: string;
+}
+
 export interface EntraTenant {
+  /** MSP companies only, filled by Entra Connect (world/cloud.ts). */
+  devices?: EntraDevice[];
+  /** Created lazily by world/entraAdmin.ts. */
+  cloudGroups?: CloudGroup[];
+  /** Created lazily by world/apps.ts. */
+  appRegistrations?: AppRegistration[];
+  /** Authentication methods policy, created lazily by world/authMethods.ts. */
+  authMethodsPolicy?: Record<string, boolean>;
+  /** Created lazily by world/identityExtras.ts. */
+  adminUnits?: AdminUnit[];
+  externalSettings?: { guestInviteRestrictions: 'everyone' | 'members' | 'admins' | 'none'; allowDomains: string[]; denyDomains: string[] };
+  /** One-time markers: tenant security baseline and MSP PIM eligibility were applied. */
+  securityBaseline?: boolean;
+  pimDefaults?: boolean;
+  /** Named locations for Conditional Access (world/tenantSettings.ts). */
+  namedLocations?: { name: string; ips: string[]; trusted: boolean }[];
+  licenses?: TenantLicense[];
   tenantName: string;
   primaryDomain: string;
   users: EntraUser[];
@@ -287,7 +366,8 @@ export interface Worker {
   employeeId: string;
   first: string;
   last: string;
-  department: Department | 'Contractor';
+  /** A Meridian Department, 'Contractor', or an MSP company's own department name. */
+  department: Department | 'Contractor' | (string & {});
   title: string;
   /** employeeId of the manager. */
   managerId: string | null;
@@ -353,6 +433,8 @@ export interface Ticket {
   workNotes: { time: string; author: string; text: string }[];
   resolution: { code: ResolutionCode; notes: string; time: string } | null;
   scenarioId: string | null;
+  /** ServiceNow escalations and the verdict each got (world/servicenow.ts). */
+  escalations?: { team: EscalationTeam; reason: string; time: string; verdict: 'accepted' | 'declined' | 'redirected' }[];
 }
 
 export interface MailMessage {
@@ -379,7 +461,7 @@ export interface VFile {
   deleted?: { from: string; at: string };
 }
 
-export type AuditSource = 'AD' | 'Entra ID' | 'Okta' | 'SaaS' | 'ServiceDesk' | 'HR' | 'Mail' | 'Sync' | 'IGA' | 'PAM';
+export type AuditSource = 'AD' | 'Entra ID' | 'Okta' | 'SaaS' | 'ServiceDesk' | 'HR' | 'Mail' | 'Sync' | 'IGA' | 'PAM' | 'Azure';
 
 export interface AuditEvent {
   id: number;
@@ -397,7 +479,22 @@ export interface AuditEvent {
 
 // ---------------------------------------------------------------- Scenarios and progress
 
+/** Who an MSP engineer can hand a ticket to (ServiceNow). */
+export type EscalationTeam = 'Security Operations' | 'Customer approver' | 'Change Advisory Board' | 'Tier 3 Engineering';
+
 export type CheckSpec =
+  /** No audit event after `afterAudit` with this target (or naming it in detail) and one of these actions. */
+  | { k: 'neverChanged'; target: string; actions: string[]; afterAudit: number }
+  | { k: 'escalatedTo'; ticket: string; team: EscalationTeam }
+  | { k: 'cloudGroupMember'; upn: string; group: string; value: boolean }
+  | { k: 'entraLicense'; upn: string; sku: string; value: boolean }
+  /** A direct assignment at exactly this scope (inherited ones do not count). */
+  | { k: 'azureRole'; principal: string; role: string; scope: string; value: boolean }
+  | { k: 'tapIssuedSince'; upn: string; since: string }
+  | { k: 'entraGuest'; email: string; value: boolean }
+  | { k: 'adOuExists'; ou: string; value: boolean }
+  /** A successful sign-in (4624) by sam, on host if given, at or after `after` (the ticket opening). */
+  | { k: 'signedInOn'; sam: string; host?: string; after: string; label?: string }
   | { k: 'adExists'; sam: string; value: boolean }
   | { k: 'adEnabled'; sam: string; value: boolean }
   | { k: 'adLocked'; sam: string; value: boolean }
@@ -469,6 +566,10 @@ export interface ScenarioInstance {
   status: 'active' | 'passed' | 'failed' | 'abandoned';
   /** Audit ids (exclusive, inclusive] written while the lab was set up: backdrop, not the learner's work. */
   setupAudit?: [number, number];
+  /** MSP labs: the escalation the template expects (none = handle it yourself). */
+  escalation?: { team: EscalationTeam; outcome: 'closed' | 'returned'; code?: ResolutionCode; response: string };
+  /** MSP labs: Resolve attempts the gate refused. */
+  attempts?: number;
 }
 
 export interface CheckResult {
@@ -492,8 +593,44 @@ export interface Player {
   adminSam: string;
 }
 
+export interface AzureResource {
+  /** Full ARM resource id, which is also its RBAC scope. */
+  id: string;
+  name: string;
+  type: string;
+  rg: string;
+  subscription: string;
+  location: string;
+  created: string;
+  /** Key vaults: access model, access policies and secret names (never values). */
+  vault?: { model: 'rbac' | 'accessPolicy'; accessPolicies: { principal: string; secrets: ('get' | 'list' | 'set' | 'delete')[] }[]; secrets: { name: string; enabled: boolean; expires: string | null }[] };
+  /** VMs and App Services: system-assigned managed identity enabled. */
+  identity?: boolean;
+}
+
+/** An Azure RBAC role assignment (not to be confused with Entra directory roles, RoleAssignment). */
+export interface AzureRoleAssignment {
+  id: string;
+  /** UPN for a user, display name for a group. */
+  principal: string;
+  principalType: 'User' | 'Group' | 'ServicePrincipal';
+  role: string;
+  scope: string;
+  created: string;
+  createdBy: string;
+}
+
+export interface AzureEstate {
+  subscriptions: { id: string; name: string }[];
+  resourceGroups: { name: string; subscription: string; location: string }[];
+  resources: AzureResource[];
+  assignments: AzureRoleAssignment[];
+}
+
 export interface World {
   version: number;
+  /** MSP customer company (world/profiles.ts); absent for Meridian. */
+  profileId?: string;
   seed: number;
   created: string;
   player: Player;
@@ -513,6 +650,8 @@ export interface World {
   iga?: Iga;
   /** Privileged access vault, created on first use (world/pam.ts). */
   pam?: Pam;
+  /** Azure subscriptions, resources and RBAC, created on first use (world/azure.ts). */
+  azure?: AzureEstate;
 }
 
 // ---------------------------------------------------------------- Identity governance (IGA)

@@ -95,6 +95,10 @@ export class Dir {
   private get w(): World {
     return this.get();
   }
+  /** DNS name of the domain this console is connected to (Change Domain). */
+  get domainName(): string {
+    return this.w.ad.domain;
+  }
   listOus(): OrganizationalUnit[] {
     return this.w.ad.ous.filter((o) => o !== BUILTIN_OU).map((o) => ouView(this.w, o));
   }
@@ -160,6 +164,10 @@ export interface VmServices {
   /** Subscribe to changes made anywhere (PowerShell, portals, scenarios). */
   onWorldChange(fn: () => void): () => void;
   world(): World;
+  /** Domains Change Domain offers (Meridian and the MSP companies). Absent: only this one. */
+  domains?(): string[];
+  /** Connect the console to another domain. */
+  changeDomain?(domain: string): void;
 }
 
 export function validatePassword(p: string): { ok: boolean; reason?: string } {

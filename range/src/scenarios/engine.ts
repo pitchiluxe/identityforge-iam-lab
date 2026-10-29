@@ -19,6 +19,8 @@ import { certCampaign, igaCorrelation } from './library/identity-governance.ts';
 import { pamBreakGlass, pamOnboard, pamSession } from './library/vault.ts';
 import { ssoTroubleshoot } from './library/sso-federation.ts';
 
+import { MSP_TEMPLATES } from './msp/index.ts';
+
 export const TEMPLATES: readonly Template[] = [
   joiner, mover, leaver,
   passwordReset, lockout, mfaReset, compromised,
@@ -30,7 +32,7 @@ export const TEMPLATES: readonly Template[] = [
 ];
 
 export function templateById(id: string): Template | undefined {
-  return TEMPLATES.find((t) => t.id === id);
+  return TEMPLATES.find((t) => t.id === id) ?? MSP_TEMPLATES.find((t) => t.id === id);
 }
 
 export interface StartOptions {
@@ -85,6 +87,7 @@ export function startScenario(w: World, opts: StartOptions = {}): ScenarioInstan
     result: null,
     status: 'active',
     setupAudit: [auditFrom, w.counters.audit],
+    escalation: built.escalation,
   };
   w.scenarios.push(instance);
   return instance;

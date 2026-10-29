@@ -22,8 +22,10 @@ import { okta } from '../sites/okta.ts';
 import { iga } from '../sites/iga.ts';
 import { vault } from '../sites/vault.ts';
 import { shiftwise } from '../sites/sso.ts';
+import { azurePortal } from '../sites/azure.ts';
+import { serviceNow } from '../sites/servicenow.ts';
 
-export const SITES: Site[] = [serviceDesk, peopleHub, webMail, entra, okta, iga, vault, saasAdmin, shiftwise, wiki];
+export const SITES: Site[] = [serviceDesk, peopleHub, webMail, entra, okta, iga, vault, saasAdmin, shiftwise, wiki, azurePortal, serviceNow];
 
 export const REAL_PORTALS: [string, string][] = [
   ['Microsoft Entra admin center', 'https://entra.microsoft.com'],

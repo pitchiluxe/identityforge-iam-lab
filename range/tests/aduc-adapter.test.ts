@@ -71,3 +71,21 @@ test('a leaver scenario can be completed through the console operations', () => 
   const after = grade(w, s).results.filter((r) => r.pass).length;
   assert.ok(after > before, 'console changes move the grade');
 });
+
+// ---------------------------------------------------------------- Change Domain (MSP companies)
+import { createCompanyWorld } from '../src/world/mspSeed.ts';
+import { profileById } from '../src/world/profiles.ts';
+import { userDn, sidFor } from '../src/ui/aduc/shim/adObjects.ts';
+
+test('the console works on another company domain: tree, DNs and new users follow it', () => {
+  const k = createCompanyWorld(profileById('kestrel')!);
+  const dir = new Dir(() => k);
+  assert.equal(dir.domainName, 'kestrelmfg.test');
+  assert.deepEqual(dir.childOus(undefined).map((o) => o.id), ['Kestrel']);
+  runCapability(k, 'user.create', { Name: 'Ana Ruiz', SamAccountName: 'aruiz', Path: 'kestrelmfg.test/Kestrel/Staging' });
+  const u = getUser(k, 'aruiz');
+  assert.equal(u.upn, 'aruiz@kestrelmfg.test');
+  assert.equal(userDn(dir, dir.getUserByUsername('aruiz')!), 'CN=Ana Ruiz,OU=Staging,OU=Kestrel,DC=kestrelmfg,DC=test');
+  const m = new Dir(() => createWorld(4));
+  assert.notEqual(sidFor('x', 'x', dir.domainName).split('-').slice(0, 7).join('-'), sidFor('x', 'x', m.domainName).split('-').slice(0, 7).join('-'), 'each domain has its own SID');
+});

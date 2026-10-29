@@ -102,3 +102,92 @@ Revoke-MgUserSignInSession -UserId (Get-ADUser $sam).UserPrincipalName
   assert.ok(remaining.every((l) => /Okta|ticket|PayrollPro|SCIM|Ticket/i.test(l)), remaining.join('; '));
   void TEMPLATES;
 });
+
+// ---------------------------------------------------------------- -Server (MSP companies)
+import { createCompanyWorld } from '../src/world/mspSeed.ts';
+import { profileById } from '../src/world/profiles.ts';
+
+function mspShell(): { m: World; b: World; run: (s: string) => string } {
+  const m = createWorld(11);
+  const b = createCompanyWorld(profileById('brightwater')!);
+  const sh = new Shell(m, CMDLETS);
+  sh.resolveServer = (s) => (s.toLowerCase() === 'brightwaterlaw.test' || s.toLowerCase() === 'brightwater' ? b : s.toLowerCase() === 'meridianhealth.test' ? m : undefined);
+  return { m, b, run: (s) => sh.run(s).map((l) => l.text).join('\n') };
+}
+
+test('-Server sends an AD cmdlet to another company domain', () => {
+  const { m, b, run } = mspShell();
+  run("New-ADUser -Name 'Ana Ruiz' -GivenName Ana -Surname Ruiz -SamAccountName aruiz -Path 'OU=Staging,OU=Firm,DC=brightwaterlaw,DC=test' -Server brightwaterlaw.test");
+  assert.ok(b.ad.users.some((u) => u.sam === 'aruiz' && u.upn === 'aruiz@brightwaterlaw.test'), 'created in Brightwater');
+  assert.ok(!m.ad.users.some((u) => u.sam === 'aruiz'), 'not in Meridian');
+  assert.match(run('Get-ADUser aruiz -Server brightwaterlaw.test'), /DistinguishedName\s+: CN=Ana Ruiz,OU=Staging,OU=Firm,DC=brightwaterlaw,DC=test/);
+  assert.match(run('Get-ADUser aruiz -Server dc01.brightwaterlaw.test'), /SamAccountName\s+: aruiz/, 'a DC FQDN works too');
+  assert.match(run('Get-ADUser aruiz'), /Cannot find an object with identity: 'aruiz'/);
+});
+
+test('-Server with an unknown domain gives the AD server-down error', () => {
+  const { run } = mspShell();
+  const out = run('Get-ADUser x -Server nope.test');
+  assert.match(out, /Get-ADUser : Unable to contact the server\. This may be because this server does not exist, it is currently down, or it does not have the Active Directory Web Services running\./);
+  assert.match(out, /CategoryInfo\s+: ResourceUnavailable: \(x:ADUser\) \[Get-ADUser\], ADServerDownException/);
+  assert.match(out, /FullyQualifiedErrorId : ActiveDirectoryServer:0,Microsoft\.ActiveDirectory\.Management\.Commands\.GetADUser/);
+});
+
+test('-Server is ignored by non-AD cmdlets and a shell without a resolver stays in its own domain', () => {
+  const { run } = mspShell();
+  assert.doesNotMatch(run('Get-Date -Server brightwaterlaw.test'), /Unable to contact/);
+  const { run: plain } = shell();
+  assert.match(plain('Get-ADUser vhale -Server meridianhealth.test'), /SamAccountName\s+: vhale/);
+  assert.match(plain('Get-ADUser vhale -Server brightwaterlaw.test'), /Unable to contact the server/);
+});
+
+// ---------------------------------------------------------------- review fixes (MSP stage 1)
+test('review: domain cmdlets describe the company domain, not Meridian', () => {
+  const { run } = mspShell();
+  const dom = run('Get-ADDomain -Server brightwaterlaw.test');
+  assert.match(dom, /DistinguishedName\s+: DC=brightwaterlaw,DC=test/);
+  assert.match(dom, /PDCEmulator\s+: BWL-DC01\.brightwaterlaw\.test/);
+  assert.doesNotMatch(dom, /meridian/i);
+  assert.match(run('Get-ADDomainController -Server brightwaterlaw.test'), /HostName\s+: BWL-DC01\.brightwaterlaw\.test/);
+  assert.doesNotMatch(run('Get-ADForest -Server brightwaterlaw.test'), /MHS-DC01/);
+  assert.match(run('Get-ADComputer nope -Server brightwaterlaw.test'), /under: 'DC=brightwaterlaw,DC=test'/);
+  assert.match(run("New-ADUser -Name 'Wi Fi' -SamAccountName wifi -WhatIf -Server brightwaterlaw.test"), /CN=Users,DC=brightwaterlaw,DC=test/);
+});
+
+test('review: objects piped from a company stay in that company', () => {
+  const { m, b, run } = mspShell();
+  run("New-ADUser -Name 'Pipe Test' -SamAccountName pipetest -Server brightwaterlaw.test");
+  run("New-ADUser -Name 'Pipe Test' -SamAccountName pipetest");
+  run('Get-ADUser pipetest -Server brightwaterlaw.test | Set-ADUser -Title Piped');
+  assert.equal(b.ad.users.find((u) => u.sam === 'pipetest')!.title, 'Piped', 'company user changed');
+  assert.notEqual(m.ad.users.find((u) => u.sam === 'pipetest')!.title, 'Piped', 'Meridian user untouched');
+  run("Get-ADGroup SG_DMS_USERS -Server brightwaterlaw.test | Add-ADGroupMember -Members pipetest");
+  assert.ok(b.ad.users.find((u) => u.sam === 'pipetest')!.memberOf.includes('SG_DMS_USERS'), 'added in the company the group came from');
+  assert.ok(!m.ad.users.find((u) => u.sam === 'pipetest')!.memberOf.includes('SG_DMS_USERS'), 'Meridian user untouched');
+});
+
+// ---------------------------------------------------------------- Connect-MgGraph -TenantId (stage 3b)
+function graphShell(): { m: World; b: World; run: (s: string) => string } {
+  const m = createWorld(11);
+  const b = createCompanyWorld(profileById('brightwater')!);
+  const sh = new Shell(m, CMDLETS);
+  sh.resolveTenant = (t) => (['brightwaterlaw.test', 'brightwaterlaw.onmicrosoft.test', 'brightwater'].includes(t.toLowerCase()) ? b : undefined);
+  return { m, b, run: (s) => sh.run(s).map((l) => l.text).join('\n') };
+}
+
+test('Connect-MgGraph -TenantId points Graph cmdlets at that tenant only', () => {
+  const { b, run } = graphShell();
+  const out = run('Connect-MgGraph -TenantId brightwaterlaw.onmicrosoft.test -NoWelcome; Get-MgContext | Select-Object -ExpandProperty Account');
+  assert.match(out, /msp-admin@brightwaterlaw\.onmicrosoft\.test/);
+  const users = run('Get-MgUser -All | Select-Object -ExpandProperty UserPrincipalName');
+  assert.ok(users.includes(b.entra.users.find((e) => e.source === 'synced')!.upn));
+  assert.doesNotMatch(users, /meridianhealth/);
+  run('Disconnect-MgGraph');
+  assert.match(run('Get-MgUser -Top 1'), /Authentication needed\. Please call Connect-MgGraph\./);
+});
+
+test('Connect-MgGraph to an unknown tenant fails with AADSTS90002', () => {
+  const { run } = graphShell();
+  assert.match(run('Connect-MgGraph -TenantId contoso.onmicrosoft.com'), /AADSTS90002: Tenant 'contoso\.onmicrosoft\.com' not found\./);
+  assert.match(run('Get-MgUser -Top 1'), /Authentication needed/);
+});

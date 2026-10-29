@@ -19,10 +19,18 @@ import type { IconName } from './icons';
 
 export type Dir = VmServices['dir'];
 
-export const DOMAIN = VM_HOST.domain;
-export const NETBIOS = VM_HOST.netbiosDomain;
-export const DC_FQDN = `${VM_HOST.domainController}.${VM_HOST.domain}`;
-export const DOMAIN_DN = DOMAIN.split('.').map((p) => `DC=${p}`).join(',');
+// The domain the console is connected to. Live bindings: Change Domain moves them (setAducDomain).
+export let DOMAIN: string = VM_HOST.domain;
+export let NETBIOS: string = VM_HOST.netbiosDomain;
+export let DC_FQDN = `${VM_HOST.domainController}.${VM_HOST.domain}`;
+export let DOMAIN_DN = DOMAIN.split('.').map((p) => `DC=${p}`).join(',');
+
+export function setAducDomain(domain: string, netbios: string, dcHost: string): void {
+  DOMAIN = domain;
+  NETBIOS = netbios;
+  DC_FQDN = `${dcHost}.${domain}`;
+  DOMAIN_DN = domain.split('.').map((p) => `DC=${p}`).join(',');
+}
 
 export type ObjKind =
   | 'root'

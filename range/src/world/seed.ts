@@ -15,7 +15,7 @@ import {
   SYNC_SCOPE, birthright, deptOu, roleFor, samFor,
 } from './company.ts';
 import { addMember, createUser, findUser } from './directory.ts';
-import { addSignIn, runEntraSync, runOktaImport } from './cloud.ts';
+import { addSignIn, objectIdFor, runEntraSync, runOktaImport } from './cloud.ts';
 import { deliverMail } from './itsm.ts';
 import { seedFiles } from './docs.ts';
 
@@ -163,7 +163,7 @@ export function createWorld(seed: number): World {
   // Break-glass: cloud-only, permanent Global Administrator, FIDO2 only.
   for (const upn of BREAK_GLASS) {
     w.entra.users.push({
-      id: `bg-${upn.slice(12, 14)}-0000-4000-a000-000000000000`, upn, displayName: `Break Glass ${upn.slice(12, 14)}`, source: 'cloud', onPremSam: null,
+      id: objectIdFor(seed, upn), upn, displayName: `Break Glass ${upn.slice(12, 14)}`, source: 'cloud', onPremSam: null,
       accountEnabled: true, department: '', jobTitle: 'Emergency access', groups: [], mfaMethods: [{ type: 'FIDO2 security key', detail: 'Stored in the CISO safe', added: daysAgo(200) }],
       mfaResetAt: null, sessionsValidFrom: daysAgo(30), sessions: [], roles: [{ role: 'Global Administrator', assignment: 'active', permanent: true, expires: null, justification: 'Break-glass account (SEC-STD-007)' }],
       licenses: [], riskLevel: 'none', deleted: false,

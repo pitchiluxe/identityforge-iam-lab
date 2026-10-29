@@ -34,6 +34,8 @@ export interface Built {
   hints: string[];
   debrief: string;
   interview: { question: string; modelAnswer: string };
+  /** MSP labs: the escalation this ticket needs, if any. */
+  escalation?: ScenarioInstance['escalation'];
 }
 
 export interface Twist {

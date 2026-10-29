@@ -13,6 +13,7 @@ import { type ChatMessage, backdropProblems, chat, coachSystemPrompt, designScen
 import { badge, button, clear, h, markdown, toast } from '../dom.ts';
 import { appIcon } from '../icons.ts';
 import { act, persist, store } from '../store.ts';
+import { allDomains, worldByDomain } from '../companies.ts';
 import { ai } from '../aiState.ts';
 import type { AppDef } from '../wm.ts';
 
@@ -241,14 +242,20 @@ export const coachApp: AppDef = {
         mentor);
     }
 
+    let accountsDomain = store.world.ad.domain;
+
     function accountsView(): HTMLElement {
-      const rows = labAccounts(store.world);
+      const companyW = accountsDomain === store.world.ad.domain ? store.world : worldByDomain(accountsDomain) ?? store.world;
+      const rows = labAccounts(companyW);
+      const picker = h('select', { class: 'input', 'aria-label': 'Company', onChange: (e: Event) => { accountsDomain = (e.target as HTMLSelectElement).value; draw(); } },
+        allDomains().map((d) => h('option', { value: d.domain, selected: d.domain === accountsDomain }, `${d.name} (${d.domain})`)));
       const csv = ['Name,SamAccountName,UserPrincipalName,Department,OU,Password,Status,In Entra ID', ...rows.map((r) => [r.name, r.sam, r.upn, r.department, r.ou, r.password ?? '(unknown: reset it)', r.status, r.inEntra ? 'Yes' : 'No'].map((v) => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n');
       return h('section', { class: 'detail' },
         h('h2', null, 'Lab accounts'),
         h('p', null, 'Passwords for testing a sign-in as an employee (Remote Desktop > verify a sign-in). Synced accounts use the same password in Entra ID and Okta. In a real company nobody can read a user\'s password: you reset it, and so do the labs.'),
         h('p', { class: 'muted' }, `Your own accounts: admin and adm-admin use your sign-in password. Admin (adm-*), service (svc-*) and break-glass credentials are checked out from the PAM vault (https://vault.meridianhealth.test), which is part of the PAM labs. "Unknown" means the password was last set through Read-Host or by you without the range seeing it; reset it to get a known one.`),
         h('div', { class: 'row' },
+          picker,
           button(reveal ? 'Hide passwords' : 'Show passwords', () => { reveal = !reveal; draw(); }, 'btn primary'),
           button('Download CSV', () => download('Meridian-Lab-Accounts.csv', csv)),
           button('Back to labs', () => { accounts = false; draw(); })),

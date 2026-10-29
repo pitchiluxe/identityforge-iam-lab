@@ -79,7 +79,12 @@ export class Formatted {
   constructor(lines: string[]) { this.lines = lines; }
 }
 
-export interface Ref { type: 'user' | 'group' | 'computer' | 'ou' | 'cloud' | 'event'; key: string }
+export interface Ref {
+  type: 'user' | 'group' | 'computer' | 'ou' | 'cloud' | 'event';
+  key: string;
+  /** Domain an AD object came from when it was read with -Server; later cmdlets go back to it. */
+  domain?: string;
+}
 
 export function withRef<T extends object>(o: T, ref: Ref): T {
   Object.defineProperty(o, '__ref', { value: ref, enumerable: false });
@@ -115,6 +120,8 @@ export interface CmdletDef {
   module: 'ActiveDirectory' | 'ADSync' | 'Microsoft.Graph' | 'Core';
   synopsis: string;
   example?: string;
+  /** Meridian practice for this command, shown as NOTES by Get-Help (see helpdocs.ts). */
+  notes?: string;
   /**
    * An executable (tasklist.exe, net.exe): no PowerShell parameter binding.
    * Every argument arrives in `pos` as the text that was typed, as Windows
@@ -215,7 +222,18 @@ export class Shell {
   history: string[] = [];
   /** The command line being run, for error positions. */
   lastLine = '';
+  /**
+   * Finds the world behind an AD -Server value (domain, NetBIOS name or DC
+   * FQDN): the MSP companies. Null means only this shell's own domain answers.
+   */
+  resolveServer: ((server: string) => World | undefined) | null = null;
+  /** Finds a tenant for Connect-MgGraph -TenantId (tenant id, onmicrosoft domain, AD domain or NetBIOS name). */
+  resolveTenant: ((tenant: string) => World | undefined) | null = null;
+  /** The tenant Microsoft.Graph cmdlets act in after Connect-MgGraph -TenantId; null means this shell's own world. */
+  graphWorld: World | null = null;
   graphConnected = false;
+  /** Scopes granted at Connect-MgGraph, as Get-MgContext reports them. */
+  graphScopes: string[] = [];
   functions = new Map<string, PsFunction>();
   errors: string[] = [];
   private filterObj: unknown = undefined;
@@ -236,6 +254,19 @@ export class Shell {
       this.cmdlets.set(c.name.toLowerCase(), c);
       for (const a of c.aliases ?? []) this.cmdlets.set(a.toLowerCase(), c);
     }
+  }
+
+  /** The world an AD cmdlet's -Server names, or the AD server-down error real PowerShell gives. */
+  private serverWorld(server: string, named: Record<string, unknown>, cmd: string): World {
+    const name = server.trim().replace(/:\d+$/, '').toLowerCase();
+    const own = (n: string): World | undefined => (n === this.w.ad.domain.toLowerCase() || n === this.w.ad.netbios.toLowerCase() ? this.w : undefined);
+    const find = (n: string): World | undefined => own(n) ?? this.resolveServer?.(n);
+    // A DC's FQDN (dc01.brightwaterlaw.test) names its domain once the host label is dropped.
+    const hit = find(name) ?? (name.includes('.') ? find(name.slice(name.indexOf('.') + 1)) : undefined);
+    if (hit) return hit;
+    const id = named.Identity !== undefined ? (refOf(named.Identity)?.key ?? toStr(named.Identity)) : '';
+    const noun = cmd.replace(/^\w+-AD/, 'AD');
+    throw new PsError('Unable to contact the server. This may be because this server does not exist, it is currently down, or it does not have the Active Directory Web Services running.', 'ResourceUnavailable', { exception: 'ADServerDownException', errorId: 'ActiveDirectoryServer:0', target: `${id}:${noun}`, source: cmd });
   }
 
   setWorld(w: World): void {
@@ -505,8 +536,17 @@ export class Shell {
       if (named[p] === undefined && pos.length) named[p] = pos.shift();
     }
     const whatIf = named.WhatIf === true;
+    // As in real AD, an object read from another domain takes later cmdlets back to that domain's DC.
+    const from = def.module === 'ActiveDirectory' ? [...(input ?? []), ...Object.values(named)].map((v) => refOf(v)?.domain).find((d) => d) : undefined;
+    const server = named.Server !== undefined && named.Server !== null && named.Server !== '' ? toStr(named.Server) : from;
+    const target = def.module === 'Microsoft.Graph' && this.graphWorld ? this.graphWorld
+      : def.module === 'ActiveDirectory' && server ? this.serverWorld(server, named, def.name) : this.w;
+    const tag = (r: unknown[]): unknown[] => {
+      if (target !== this.w) for (const o of r) { const ref = refOf(o); if (ref) ref.domain ??= target.ad.domain; }
+      return r;
+    };
     const makeCtx = (n: Record<string, unknown>, inp: unknown[] | null): CmdletCtx => ({
-      shell: this, w: this.w, name: def.name, named: n, pos, input: inp, whatIf,
+      shell: this, w: target, name: def.name, named: n, pos, input: inp, whatIf,
       has: (p) => n[p] !== undefined && n[p] !== false,
       str: (p, required) => {
         const v = n[p];
@@ -526,9 +566,9 @@ export class Shell {
           if (n[def.pipeParam] === undefined) n[def.pipeParam] = item;
           out.push(...collect(def.run(makeCtx(n, [item]))));
         }
-        return out;
+        return tag(out);
       }
-      return collect(def.run(makeCtx(named, def.pipe === 'all' ? input ?? [] : input)));
+      return tag(collect(def.run(makeCtx(named, def.pipe === 'all' ? input ?? [] : input))));
     } catch (e) {
       if (e instanceof ExitSignal || e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal) throw e;
       if (named.ErrorAction && /silentlycontinue|ignore/i.test(toStr(named.ErrorAction))) return [];

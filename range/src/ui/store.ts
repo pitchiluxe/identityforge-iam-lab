@@ -12,7 +12,7 @@ import { record } from '../core/career.ts';
 import { randomSeed } from '../core/rng.ts';
 import { createWorld, WORLD_VERSION } from '../world/seed.ts';
 import { ensureLabPasswords } from '../world/labaccounts.ts';
-import { runEntraSync, runOktaImport } from '../world/cloud.ts';
+import { bindMeridian, exportHrFeeds, materialisedWorlds, persistCompanies, syncDue } from './companies.ts';
 import { toast } from './dom.ts';
 
 const WORLD_KEY = 'identityforge-range-world';
@@ -46,6 +46,8 @@ export interface Settings {
   taskManager?: { speed?: 'high' | 'normal' | 'low' | 'paused'; startPage?: string };
   copilotNudges?: boolean;
   browser?: import('./apps/browser.ts').BrowserData;
+  /** Lab Azure portal: signed-in account per tenant and the directory on screen. */
+  azurePortal?: { sessions: Record<string, { upn: string; since: string }>; current: string };
   model: string | null;
   rewordTickets: boolean;
   autoSync: boolean;
@@ -83,6 +85,8 @@ export const store = {
   /** Answers typed in the interview drill, per scenario. */
   interviewAnswers: load<Record<string, string>>('identityforge-range-answers') ?? {},
 };
+bindMeridian(() => store.world);
+exportHrFeeds(store.world);
 
 // The image wallpapers stopped being the default in settings v2. A choice saved
 // before then was the old default, not a decision, so it moves to the new one.
@@ -96,8 +100,15 @@ export function subscribe(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
+let storageWarned = false;
+
 export function persist(): void {
   save(WORLD_KEY, store.world);
+  const { skipped } = persistCompanies();
+  if (skipped.length && !storageWarned) {
+    storageWarned = true;
+    toast(`Browser storage is full: changes in ${skipped.length} MSP compan${skipped.length === 1 ? 'y' : 'ies'} are kept until you close the range, but not saved.`, 'err');
+  }
   save(CAREER_KEY, store.career);
   save(SETTINGS_KEY, store.settings);
   save('identityforge-range-answers', store.interviewAnswers);
@@ -109,17 +120,21 @@ export function notify(): void {
   }
 }
 
-/** Run an action against the world. Returns false (and shows the error) if it threw. */
-export function act(fn: (w: World) => void, success?: string): boolean {
+/**
+ * Run an action against a world: Meridian unless another company's world is
+ * given (ADUC Change Domain, -Server). Returns false (and shows the error) if it threw.
+ */
+export function act(fn: (w: World) => void, success?: string, target: World = store.world): boolean {
   try {
-    fn(store.world);
+    fn(target);
     if (success) toast(success, 'ok');
     return true;
   } catch (e) {
     toast(e instanceof Error ? e.message : String(e), 'err');
     return false;
   } finally {
-    for (const s of store.world.scenarios) if (s.result) record(store.career, s);
+    for (const s of target.scenarios) if (s.result) record(store.career, s);
+    if (target !== store.world) exportHrFeeds(store.world);
     persist();
     notify();
   }
@@ -127,6 +142,7 @@ export function act(fn: (w: World) => void, success?: string): boolean {
 
 export function resetWorld(): void {
   store.world = createWorld(randomSeed());
+  exportHrFeeds(store.world);
   persist();
   notify();
 }
@@ -135,11 +151,6 @@ export function resetWorld(): void {
 export function startSchedulers(): void {
   setInterval(() => {
     if (!store.settings.autoSync) return;
-    const w = store.world;
-    const now = Date.now();
-    let changed = false;
-    if (now - Date.parse(w.entra.lastSync) > 30 * 60_000) { runEntraSync(w, 'Microsoft Entra Connect (scheduler)'); changed = true; }
-    if (now - Date.parse(w.okta.lastImport) > 60 * 60_000) { runOktaImport(w, 'Okta AD Agent (scheduled import)'); changed = true; }
-    if (changed) { persist(); notify(); }
+    if (syncDue([store.world, ...materialisedWorlds()], Date.now()).length) { persist(); notify(); }
   }, 60_000);
 }

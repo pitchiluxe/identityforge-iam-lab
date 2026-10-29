@@ -23,8 +23,21 @@ export interface Attempt {
   interviewScore: number | null;
 }
 
+/** A ServiceNow lab: a generated batch of tickets for one MSP company, and its final score. */
+export interface MspLab {
+  id: string;
+  company: string;
+  scenarioIds: string[];
+  started: string;
+  count: number;
+  difficulty: 1 | 2 | 3;
+  finished?: { time: string; score: number; summary: string };
+}
+
 export interface Career {
   attempts: Attempt[];
+  /** ServiceNow labs (career storage, so they survive a company reset). */
+  labs?: MspLab[];
 }
 
 /** What job descriptions for IAM Analyst / Engineer roles ask for, mapped to range skills. */

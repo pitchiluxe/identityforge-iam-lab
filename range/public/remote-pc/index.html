@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Content Security Policy.
+
+      Electron warns when a renderer has none, and it is right to: this window
+      loads over file:// with a preload bridge to the main process, so anything
+      that got script execution here would be one IPC channel away from the
+      shell.
+
+      What the workstation actually needs:
+        script-src  'self'          the bundle, nothing remote
+        style-src   'unsafe-inline' every window styles itself with cssText
+        img-src     data:           wallpapers are inline SVG data URIs
+        connect-src localhost:11434 the local Ollama, and nothing else
+        frame-src   allowlisted     the in-VM browser's hosts, filled in from
+                                    shared/webAllowlist.json at build time
+        object-src  'none'          no plugins, ever
+
+      frame-ancestors is absent because it is ignored in a meta element and
+      only works as a header. A file:// window cannot be framed anyway.
+
+      'unsafe-eval' is deliberately absent — nothing here needs it.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: blob:;
+               font-src 'self' data:;
+               connect-src 'self' http://localhost:11434 http://127.0.0.1:11434;
+               frame-src https: http:;
+               object-src 'none';
+               base-uri 'self';
+               form-action 'none';"
+    />
+    <title>IAM Range — Identity Operations Workstation</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0e1116; overflow: hidden; }
+      #app { height: 100%; }
+    </style>
+    <script type="module" crossorigin src="./assets/index-D8tXKXNz.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

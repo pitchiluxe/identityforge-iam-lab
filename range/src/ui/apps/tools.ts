@@ -10,6 +10,7 @@ import { CMDLETS } from '../../terminal/cmdlets.ts';
 import { clear, h, toast } from '../dom.ts';
 import { type MenuEntry, showMenu } from '../ctxmenu.ts';
 import { act, notify, persist, store, subscribe } from '../store.ts';
+import { tenantLookup, worldByDomain } from '../companies.ts';
 import { type SmallIcon, fileGlyph, glyph } from '../icons.ts';
 import { type AppDef, onOpenArg, openApp } from '../wm.ts';
 
@@ -34,8 +35,13 @@ export interface PsWindowControl {
   run(cmd: string, echo?: boolean): void;
 }
 
-export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; script?: string; compact?: boolean; cwd?: string } = {}): { control: PsWindowControl; dispose: () => void; shell: Shell } {
-  const sh = new Shell(store.world, CMDLETS);
+export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; script?: string; compact?: boolean; cwd?: string; world?: () => World; setup?: (sh: Shell) => void } = {}): { control: PsWindowControl; dispose: () => void; shell: Shell } {
+  // Cloud Shell runs in a tenant's world; every other host in the workstation's.
+  const worldOf = opts.world ?? ((): World => store.world);
+  const sh = new Shell(worldOf(), CMDLETS);
+  sh.resolveServer = worldByDomain;
+  sh.resolveTenant = tenantLookup;
+  opts.setup?.(sh);
   if (opts.cwd) sh.cwd = opts.cwd;
   const out = h('div', { class: 'ps-out', 'aria-live': 'polite' });
   const input = h('input', { class: 'ps-in', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'PowerShell command' });
@@ -54,7 +60,7 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
     line('');
   }
   const exec = (cmd: string, answer = false): void => {
-    sh.setWorld(store.world);
+    sh.setWorld(worldOf());
     for (const l of answer ? sh.answerPrompt(cmd) : sh.run(cmd)) {
       if (l.text === '\u0000CLEAR') { clear(out); continue; }
       if (l.text === '\u0000EXIT') { opts.onExit?.(); continue; }
@@ -72,7 +78,7 @@ export function mountPowerShell(host: HTMLElement, opts: { onExit?: () => void; 
     },
   };
   setPrompt();
-  const unsub = subscribe(() => sh.setWorld(store.world));
+  const unsub = subscribe(() => sh.setWorld(worldOf()));
   const complete = (): void => {
     const v = input.value.slice(0, input.selectionStart ?? input.value.length);
     const after = input.value.slice(input.selectionStart ?? input.value.length);

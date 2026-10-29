@@ -10,6 +10,8 @@ import type { AdGroup, AdUser, World } from '../core/types.ts';
 import { nowIso } from '../core/time.ts';
 import { audit } from './audit.ts';
 import { BUILTIN_OU, COMPANY } from './company.ts';
+import { profileById } from './profiles.ts';
+import { assignWorkstation } from './workstations.ts';
 
 export class AdError extends Error {}
 
@@ -17,11 +19,19 @@ export class AdError extends Error {}
 export const TIER0_GROUPS = ['Domain Admins', 'Enterprise Admins', 'Account Operators'];
 export const LOCKOUT_THRESHOLD = 5;
 
-const DC = COMPANY.domain.split('.').map((p) => `DC=${p}`).join(',');
+/** The domain controller's host name: MHS-DC01 for Meridian, <prefix>-DC01 for an MSP company. */
+export function dcHostOf(w: World): string {
+  return `${(w.profileId && profileById(w.profileId)?.prefix) || 'MHS'}-DC01`;
+}
 
-export function ouToDn(ou: string): string {
-  if (ou === BUILTIN_OU) return `CN=Users,${DC}`;
-  return ou.split('/').reverse().map((p) => `OU=${p}`).join(',') + ',' + DC;
+/** The DC= components of a domain; Meridian's when no world is given. */
+export function domainDn(w?: World): string {
+  return (w?.ad.domain ?? COMPANY.domain).split('.').map((p) => `DC=${p}`).join(',');
+}
+
+export function ouToDn(ou: string, w?: World): string {
+  if (ou === BUILTIN_OU) return `CN=Users,${domainDn(w)}`;
+  return ou.split('/').reverse().map((p) => `OU=${p}`).join(',') + ',' + domainDn(w);
 }
 
 /** Accepts a DN ("OU=Finance,OU=Users,OU=Corp,DC=meridianhealth,DC=test") or a path ("Corp/Users/Finance"). */
@@ -40,36 +50,36 @@ export function parseOu(w: World, input: string): string {
   throw new AdError(`Directory object not found: '${input}'. Check the OU distinguished name.`);
 }
 
-export function dnOf(u: AdUser): string {
-  return `CN=${u.displayName},${ouToDn(u.ou)}`;
+export function dnOf(u: AdUser, w?: World): string {
+  return `CN=${u.displayName},${ouToDn(u.ou, w)}`;
 }
 
-export function groupDn(g: AdGroup): string {
-  return `CN=${g.name},${ouToDn(g.ou)}`;
+export function groupDn(g: AdGroup, w?: World): string {
+  return `CN=${g.name},${ouToDn(g.ou, w)}`;
 }
 
 export function findUser(w: World, identity: string): AdUser | undefined {
   const id = identity.trim().toLowerCase();
   if (!id) return undefined;
   return w.ad.users.find(
-    (u) => u.sam.toLowerCase() === id || u.upn.toLowerCase() === id || dnOf(u).toLowerCase() === id || u.displayName.toLowerCase() === id,
+    (u) => u.sam.toLowerCase() === id || u.upn.toLowerCase() === id || dnOf(u, w).toLowerCase() === id || u.displayName.toLowerCase() === id,
   );
 }
 
 export function getUser(w: World, identity: string): AdUser {
   const u = findUser(w, identity);
-  if (!u) throw new AdError(`Cannot find an object with identity: '${identity}' under: '${DC}'.`);
+  if (!u) throw new AdError(`Cannot find an object with identity: '${identity}' under: '${domainDn(w)}'.`);
   return u;
 }
 
 export function findGroup(w: World, identity: string): AdGroup | undefined {
   const id = identity.trim().toLowerCase();
-  return w.ad.groups.find((g) => g.name.toLowerCase() === id || groupDn(g).toLowerCase() === id);
+  return w.ad.groups.find((g) => g.name.toLowerCase() === id || groupDn(g, w).toLowerCase() === id);
 }
 
 export function getGroup(w: World, identity: string): AdGroup {
   const g = findGroup(w, identity);
-  if (!g) throw new AdError(`Cannot find an object with identity: '${identity}' under: '${DC}'.`);
+  if (!g) throw new AdError(`Cannot find an object with identity: '${identity}' under: '${domainDn(w)}'.`);
   return g;
 }
 
@@ -108,7 +118,7 @@ export function createUser(w: World, input: NewUserInput, actor = w.player.admin
   const sam = input.sam.trim();
   if (!/^[A-Za-z0-9._-]{1,20}$/.test(sam)) throw new AdError('The SamAccountName must be 1-20 characters without spaces or special characters.');
   if (findUser(w, sam)) throw new AdError('The specified account already exists');
-  const upn = (input.upn ?? `${sam}@${COMPANY.domain}`).trim();
+  const upn = (input.upn ?? `${sam}@${w.ad.domain}`).trim();
   if (w.ad.users.some((u) => u.upn.toLowerCase() === upn.toLowerCase())) throw new AdError('The operation failed because UPN value provided for addition/modification is not unique forest-wide');
   const ou = parseOu(w, input.ou);
   const displayName = input.displayName?.trim() || `${input.givenName} ${input.surname}`.trim();
@@ -149,8 +159,10 @@ export function createUser(w: World, input: NewUserInput, actor = w.player.admin
     whenChanged: t,
   };
   w.ad.users.push(user);
-  audit(w, { source: 'AD', eventId: 4720, action: 'User account created', target: sam, actor, detail: `${dnOf(user)}` });
+  audit(w, { source: 'AD', eventId: 4720, action: 'User account created', target: sam, actor, detail: `${dnOf(user, w)}` });
   if (user.enabled) audit(w, { source: 'AD', eventId: 4722, action: 'User account enabled', target: sam, actor });
+  // MSP companies: every person gets a workstation, whichever tool created them.
+  if (w.profileId && user.kind === 'user') assignWorkstation(w, sam);
   return user;
 }
 
@@ -244,7 +256,7 @@ export function moveUser(w: World, identity: string, target: string, actor = w.p
   const from = u.ou;
   u.ou = ou;
   touch(u);
-  audit(w, { source: 'AD', eventId: 5139, action: 'Object moved', target: u.sam, actor, detail: `${ouToDn(from)} -> ${ouToDn(ou)}` });
+  audit(w, { source: 'AD', eventId: 5139, action: 'Object moved', target: u.sam, actor, detail: `${ouToDn(from, w)} -> ${ouToDn(ou, w)}` });
   return u;
 }
 
@@ -285,6 +297,7 @@ export function deleteUser(w: World, identity: string, actor = w.player.adminSam
   const u = getUser(w, identity);
   w.ad.users = w.ad.users.filter((o) => o !== u);
   for (const o of w.ad.users) if (o.manager === u.sam) o.manager = null;
+  for (const c of w.ad.computers) if (c.primaryUser === u.sam) { c.primaryUser = null; c.description = `Reclaimed from ${u.displayName}`; }
   audit(w, { source: 'AD', eventId: 4726, action: 'User account deleted', target: u.sam, actor, detail: 'Deleted objects are not recoverable without the AD Recycle Bin and lose their SID history in downstream systems.' });
 }
 
@@ -315,7 +328,7 @@ export function failLogons(w: World, identity: string, count: number, origin: st
     audit(w, { source: 'AD', eventId: 4771, action: 'Kerberos pre-authentication failed', target: u.sam, actor: u.sam, origin, detail: `Failure code 0x18 (bad password). Client address: ${origin}`, time });
     if (u.badPwdCount >= LOCKOUT_THRESHOLD && !u.lockedOut) {
       u.lockedOut = true;
-      audit(w, { source: 'AD', eventId: 4740, action: 'User account locked out', target: u.sam, actor: 'SYSTEM', origin: 'MHS-DC01', detail: `Caller Computer Name: ${origin}`, time });
+      audit(w, { source: 'AD', eventId: 4740, action: 'User account locked out', target: u.sam, actor: 'SYSTEM', origin: dcHostOf(w), detail: `Caller Computer Name: ${origin}`, time });
     }
   }
   return u;
@@ -430,7 +443,7 @@ export function createOu(w: World, name: string, parent: string | null, opts: { 
   info.description = opts.description ?? '';
   info.protected = opts.protected ?? true;
   info.created = nowIso();
-  audit(w, { source: 'AD', eventId: 5137, action: 'Organizational unit created', target: path, actor, detail: ouToDn(path) });
+  audit(w, { source: 'AD', eventId: 5137, action: 'Organizational unit created', target: path, actor, detail: ouToDn(path, w) });
   return path;
 }
 
@@ -463,7 +476,7 @@ export function renameOu(w: World, path: string, newName: string, actor = w.play
     const nk = swap(k);
     if (nk !== k) { x.ouInfo[nk] = x.ouInfo[k]!; delete x.ouInfo[k]; }
   }
-  audit(w, { source: 'AD', eventId: 5139, action: 'Organizational unit renamed', target: next, actor, detail: `${ouToDn(p)} -> ${ouToDn(next)}` });
+  audit(w, { source: 'AD', eventId: 5139, action: 'Organizational unit renamed', target: next, actor, detail: `${ouToDn(p, w)} -> ${ouToDn(next, w)}` });
   return next;
 }
 
@@ -527,6 +540,7 @@ export function renameUserSam(w: World, identity: string, newSam: string, actor 
   const old = u.sam;
   for (const o of w.ad.users) if (o.manager === old) o.manager = n;
   for (const g of w.ad.groups) if (g.managedBy === old) g.managedBy = n;
+  for (const c of w.ad.computers) if (c.primaryUser === old) c.primaryUser = n;
   const x = extra(w);
   if (x.userAttrs[old]) { x.userAttrs[n] = x.userAttrs[old]!; delete x.userAttrs[old]; }
   u.sam = n;

@@ -11,17 +11,20 @@ import { AD_EVENT_NAMES } from '../world/audit.ts';
 import {
   addMember, createGroup, createUser, deleteUser, dnOf, getGroup, getUser, groupDn, membersOf, moveUser,
   ouToDn, parseOu, principalGroups, removeMember, resetPassword, setEnabled, setExpiration, setGroupOwner,
-  setPasswordFlags, setUser, unlock, type UserAttr,
-} from '../world/directory.ts';
-import { getEntraUser, revokeSessions, runEntraSync } from '../world/cloud.ts';
+  setPasswordFlags, setUser, unlock, type UserAttr, dcHostOf, domainDn } from '../world/directory.ts';
+import { portalAdminUpn } from '../world/azure.ts';
+import { revokeSessionsAs } from '../world/entraAdmin.ts';
+import { asGraph } from './graphAuth.ts';
+import { getEntraUser, objectIdFor, revokeSessions, runEntraSync } from '../world/cloud.ts';
 import { EXTRA_CMDLETS } from './cmdlets2.ts';
+import { iamCmdlets } from './cmdlets-iam.ts';
+import { GUI_PROGRAMS, HELP, paramType } from './helpdocs.ts';
 import { readFile, writeFile } from '../world/docs.ts';
 import {
   type CmdletCtx, type CmdletDef, Formatted, MissingParamError, PsError, ScriptBlock, SecureStringValue, cell, commandNotFound, formatDate, formatObjects,
   getProp, refOf, toStr, truthy, withRef,
 } from './shell.ts';
 
-const DC = 'DC=meridianhealth,DC=test';
 
 function sidOf(seed: string): string {
   let h = 0;
@@ -46,15 +49,15 @@ export function userObject(w: World, u: AdUser, props: string[] | '*' = []): Rec
     Department: u.department || null,
     Description: u.description || null,
     DisplayName: u.displayName,
-    DistinguishedName: dnOf(u),
+    DistinguishedName: dnOf(u, w),
     EmailAddress: u.mail,
     EmployeeID: u.employeeId || null,
     Enabled: u.enabled,
     GivenName: u.givenName,
     LastLogonDate: toDate(u.lastLogon),
     LockedOut: u.lockedOut,
-    Manager: u.manager ? dnOf(getUser(w, u.manager)) : null,
-    MemberOf: u.memberOf.map((g) => groupDn(getGroup(w, g))),
+    Manager: u.manager ? dnOf(getUser(w, u.manager), w) : null,
+    MemberOf: u.memberOf.map((g) => groupDn(getGroup(w, g), w)),
     Name: u.displayName,
     ObjectClass: 'user',
     ObjectGUID: guidOf(u.sam),
@@ -78,11 +81,11 @@ export function userObject(w: World, u: AdUser, props: string[] | '*' = []): Rec
 function groupObject(w: World, g: AdGroup, props: string[] | '*' = []): Record<string, unknown> {
   const full: Record<string, unknown> = {
     Description: g.description,
-    DistinguishedName: groupDn(g),
+    DistinguishedName: groupDn(g, w),
     GroupCategory: g.category,
     GroupScope: g.scope,
-    ManagedBy: g.managedBy ? dnOf(getUser(w, g.managedBy)) : null,
-    Members: membersOf(w, g.name).map(dnOf),
+    ManagedBy: g.managedBy ? dnOf(getUser(w, g.managedBy), w) : null,
+    Members: membersOf(w, g.name).map((m) => dnOf(m, w)),
     Name: g.name,
     ObjectClass: 'group',
     ObjectGUID: guidOf(`g:${g.name}`),
@@ -96,10 +99,10 @@ function groupObject(w: World, g: AdGroup, props: string[] | '*' = []): Record<s
   return withRef(o, { type: 'group', key: g.name });
 }
 
-function computerObject(c: AdComputer): Record<string, unknown> {
+function computerObject(c: AdComputer, w?: World): Record<string, unknown> {
   return withRef({
-    DistinguishedName: `CN=${c.name},${ouToDn(c.ou)}`,
-    DNSHostName: `${c.name.toLowerCase()}.meridianhealth.test`,
+    DistinguishedName: `CN=${c.name},${ouToDn(c.ou, w)}`,
+    DNSHostName: `${c.name.toLowerCase()}.${w?.ad.domain ?? 'meridianhealth.test'}`,
     Enabled: c.enabled,
     IPv4Address: c.ip,
     LastLogonDate: new Date(c.lastLogon),
@@ -224,7 +227,7 @@ function parseCsv(text: string): Record<string, string>[] {
 }
 
 function requireGraph(c: CmdletCtx): void {
-  if (!c.shell.graphConnected) throw new PsError('Authentication needed. Please call Connect-MgGraph.', 'AuthenticationError');
+  if (!c.shell.graphConnected) throw new PsError('Authentication needed. Please call Connect-MgGraph.', 'AuthenticationError', { exception: 'AuthenticationException' });
 }
 
 const USER_PARAMS: Record<string, UserAttr | 'manager'> = {
@@ -260,7 +263,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Gets the members of an Active Directory group.', example: 'Get-ADGroupMember -Identity "Domain Admins"',
     run(c) {
       const g = getGroup(c.w, identity(c));
-      return membersOf(c.w, g.name).map((u) => withRef({ distinguishedName: dnOf(u), name: u.displayName, objectClass: 'user', SamAccountName: u.sam }, { type: 'user', key: u.sam }));
+      return membersOf(c.w, g.name).map((u) => withRef({ distinguishedName: dnOf(u, c.w), name: u.displayName, objectClass: 'user', SamAccountName: u.sam }, { type: 'user', key: u.sam }));
     },
   },
   {
@@ -268,14 +271,14 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Gets the groups a user is a member of, including Domain Users.', example: 'Get-ADPrincipalGroupMembership -Identity vhale | Select-Object Name',
     run(c) {
       const u = getUser(c.w, identity(c));
-      return principalGroups(u).map((n) => { const g = getGroup(c.w, n); return withRef({ distinguishedName: groupDn(g), GroupCategory: g.category, GroupScope: g.scope, name: g.name, objectClass: 'group', SamAccountName: g.name }, { type: 'group', key: g.name }); });
+      return principalGroups(u).map((n) => { const g = getGroup(c.w, n); return withRef({ distinguishedName: groupDn(g, c.w), GroupCategory: g.category, GroupScope: g.scope, name: g.name, objectClass: 'group', SamAccountName: g.name }, { type: 'group', key: g.name }); });
     },
   },
   {
     name: 'Get-ADOrganizationalUnit', module: 'ActiveDirectory', params: ['Identity', 'Filter', 'SearchBase'], positional: ['Identity'],
     synopsis: 'Gets organizational units.', example: 'Get-ADOrganizationalUnit -Filter * | Select-Object Name,DistinguishedName',
     run(c) {
-      const list = c.w.ad.ous.filter((o) => o !== 'Users').map((o) => withRef({ DistinguishedName: ouToDn(o), Name: o.split('/').pop()!, ObjectClass: 'organizationalUnit' }, { type: 'ou', key: o }));
+      const list = c.w.ad.ous.filter((o) => o !== 'Users').map((o) => withRef({ DistinguishedName: ouToDn(o, c.w), Name: o.split('/').pop()!, ObjectClass: 'organizationalUnit' }, { type: 'ou', key: o }));
       if (c.named.Identity !== undefined) { const ou = parseOu(c.w, identity(c)); return list.find((x) => refOf(x)!.key === ou); }
       return list.filter((o) => c.shell.matches(c.named.Filter ?? '*', o));
     },
@@ -287,15 +290,15 @@ export const CMDLETS: CmdletDef[] = [
       if (c.named.Identity !== undefined) {
         const id = identity(c).replace(/\$$/, '').toLowerCase();
         const comp = c.w.ad.computers.find((x) => x.name.toLowerCase() === id);
-        if (!comp) throw new PsError(`Cannot find an object with identity: '${identity(c)}' under: '${DC}'.`, 'ObjectNotFound');
-        return computerObject(comp);
+        if (!comp) throw new PsError(`Cannot find an object with identity: '${identity(c)}' under: '${domainDn(c.w)}'.`, 'ObjectNotFound');
+        return computerObject(comp, c.w);
       }
-      return c.w.ad.computers.map(computerObject).filter((o) => c.shell.matches(c.named.Filter ?? '*', o));
+      return c.w.ad.computers.map((m) => computerObject(m, c.w)).filter((o) => c.shell.matches(c.named.Filter ?? '*', o));
     },
   },
   {
     name: 'Get-ADDomain', module: 'ActiveDirectory', params: ['Identity'],
-    synopsis: 'Gets the domain.', run: (c) => ({ DistinguishedName: DC, DNSRoot: c.w.ad.domain, NetBIOSName: c.w.ad.netbios, DomainMode: 'Windows2016Domain', PDCEmulator: 'MHS-DC01.meridianhealth.test', UsersContainer: `CN=Users,${DC}` }),
+    synopsis: 'Gets the domain.', run: (c) => ({ DistinguishedName: domainDn(c.w), DNSRoot: c.w.ad.domain, NetBIOSName: c.w.ad.netbios, DomainMode: 'Windows2016Domain', PDCEmulator: `${dcHostOf(c.w)}.${c.w.ad.domain}`, UsersContainer: `CN=Users,${domainDn(c.w)}` }),
   },
   {
     name: 'Search-ADAccount', module: 'ActiveDirectory', params: ['TimeSpan', 'SearchBase', 'DateTime'], switches: ['LockedOut', 'AccountDisabled', 'AccountInactive', 'AccountExpired', 'AccountExpiring', 'PasswordNeverExpires', 'PasswordExpired', 'UsersOnly', 'ComputersOnly'],
@@ -316,7 +319,7 @@ export const CMDLETS: CmdletDef[] = [
         throw new PsError('Parameter set cannot be resolved using the specified named parameters. Use one of -LockedOut, -AccountDisabled, -AccountInactive, -AccountExpired, -PasswordNeverExpires.');
       }
       if (c.has('ComputersOnly')) return [];
-      return users.map((u) => withRef({ AccountExpirationDate: toDate(u.accountExpires), DistinguishedName: dnOf(u), Enabled: u.enabled, LastLogonDate: toDate(u.lastLogon), LockedOut: u.lockedOut, Name: u.displayName, ObjectClass: 'user', PasswordNeverExpires: u.passwordNeverExpires, SamAccountName: u.sam, UserPrincipalName: u.upn }, { type: 'user', key: u.sam }));
+      return users.map((u) => withRef({ AccountExpirationDate: toDate(u.accountExpires), DistinguishedName: dnOf(u, c.w), Enabled: u.enabled, LastLogonDate: toDate(u.lastLogon), LockedOut: u.lockedOut, Name: u.displayName, ObjectClass: 'user', PasswordNeverExpires: u.passwordNeverExpires, SamAccountName: u.sam, UserPrincipalName: u.upn }, { type: 'user', key: u.sam }));
     },
   },
   // ------------------------------------------------------------------ AD write
@@ -327,7 +330,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const name = c.str('Name', true);
       const sam = c.str('SamAccountName') || name;
-      const path = c.named.Path === undefined ? 'CN=Users,DC=meridianhealth,DC=test' : c.str('Path');
+      const path = c.named.Path === undefined ? `CN=Users,${domainDn(c.w)}` : c.str('Path');
       if (whatIf(c, 'New', `CN=${name},${path}`)) return;
       const enabled = c.named.Enabled !== undefined && truthy(c.named.Enabled);
       const u = createUser(c.w, {
@@ -346,7 +349,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const id = identity(c);
       const u = getUser(c.w, id);
-      if (whatIf(c, 'Set', dnOf(u))) return;
+      if (whatIf(c, 'Set', dnOf(u, c.w))) return;
       const changes: Partial<Record<UserAttr, string>> & { manager?: string | null } = {};
       for (const [param, attr] of Object.entries(USER_PARAMS)) {
         if (c.named[param] === undefined) continue;
@@ -383,7 +386,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: `${verb}s an Active Directory account.`, example: `${verb}-ADAccount -Identity vhale`,
     run(c) {
       const u = getUser(c.w, identity(c));
-      if (whatIf(c, verb === 'Unlock' ? 'Set' : verb, dnOf(u))) return;
+      if (whatIf(c, verb === 'Unlock' ? 'Set' : verb, dnOf(u, c.w))) return;
       if (verb === 'Unlock') unlock(c.w, u.sam);
       else setEnabled(c.w, u.sam, verb === 'Enable');
       if (c.has('PassThru')) return userObject(c.w, u);
@@ -396,7 +399,7 @@ export const CMDLETS: CmdletDef[] = [
       const u = getUser(c.w, identity(c));
       if (!c.has('Reset')) throw new PsError('The old password is required unless -Reset is used. Administrators reset with -Reset.');
       if (!(c.named.NewPassword instanceof SecureStringValue)) throw new PsError('Cannot bind parameter \'NewPassword\'. Cannot convert the value to type "System.Security.SecureString". Use (Read-Host -AsSecureString) or ConvertTo-SecureString.');
-      if (whatIf(c, 'Set-ADAccountPassword', dnOf(u))) return;
+      if (whatIf(c, 'Set-ADAccountPassword', dnOf(u, c.w))) return;
       resetPassword(c.w, u.sam, { mustChange: u.mustChangePassword, password: (c.named.NewPassword as SecureStringValue).plain });
       c.shell.warn('Password reset. Remember: Set-ADUser -ChangePasswordAtLogon $true so IAM never knows the user\'s working password.');
     },
@@ -407,13 +410,13 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const u = getUser(c.w, identity(c));
       const when = c.named.DateTime !== undefined ? asDate(c.named.DateTime) : new Date(nowMs() + parseTimeSpanDays(c.named.TimeSpan) * 86_400_000);
-      if (whatIf(c, 'Set', dnOf(u))) return;
+      if (whatIf(c, 'Set', dnOf(u, c.w))) return;
       setExpiration(c.w, u.sam, when.toISOString());
     },
   },
   {
     name: 'Clear-ADAccountExpiration', module: 'ActiveDirectory', mutates: true, params: ['Identity'], positional: ['Identity'], pipe: 'each', pipeParam: 'Identity',
-    synopsis: 'Removes an account expiration date.', run(c) { const u = getUser(c.w, identity(c)); if (!whatIf(c, 'Set', dnOf(u))) setExpiration(c.w, u.sam, null); },
+    synopsis: 'Removes an account expiration date.', run(c) { const u = getUser(c.w, identity(c)); if (!whatIf(c, 'Set', dnOf(u, c.w))) setExpiration(c.w, u.sam, null); },
   },
   {
     name: 'Move-ADObject', module: 'ActiveDirectory', mutates: true, params: ['Identity', 'TargetPath'], positional: ['Identity', 'TargetPath'], pipe: 'each', pipeParam: 'Identity',
@@ -421,7 +424,7 @@ export const CMDLETS: CmdletDef[] = [
     run(c) {
       const u = getUser(c.w, identity(c));
       const target = c.str('TargetPath', true);
-      if (whatIf(c, 'Move', dnOf(u))) return;
+      if (whatIf(c, 'Move', dnOf(u, c.w))) return;
       moveUser(c.w, u.sam, target);
     },
   },
@@ -430,7 +433,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Deletes a user. Leavers are disabled, not deleted, for 30 days.',
     run(c) {
       const u = getUser(c.w, identity(c));
-      if (whatIf(c, 'Remove', dnOf(u))) return;
+      if (whatIf(c, 'Remove', dnOf(u, c.w))) return;
       deleteUser(c.w, u.sam);
       c.shell.warn('Object deleted. The JML SOP keeps leavers for 30 days; deletion destroys audit evidence.');
     },
@@ -442,7 +445,7 @@ export const CMDLETS: CmdletDef[] = [
       const g = getGroup(c.w, identity(c));
       const members = idList(c.named.Members);
       if (!members.length) throw new MissingParamError('Members');
-      if (whatIf(c, 'Set', groupDn(g))) return;
+      if (whatIf(c, 'Set', groupDn(g, c.w))) return;
       for (const m of members) addMember(c.w, g.name, m);
     },
   },
@@ -453,7 +456,7 @@ export const CMDLETS: CmdletDef[] = [
       const g = getGroup(c.w, identity(c));
       const members = idList(c.named.Members);
       if (!members.length) throw new MissingParamError('Members');
-      if (whatIf(c, 'Set', groupDn(g))) return;
+      if (whatIf(c, 'Set', groupDn(g, c.w))) return;
       for (const m of members) removeMember(c.w, g.name, m);
     },
   },
@@ -462,7 +465,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Adds a user to several groups.', example: 'Add-ADPrincipalGroupMembership -Identity mokafor -MemberOf grp-all-staff,app-expenseflow',
     run(c) {
       const u = getUser(c.w, identity(c));
-      if (whatIf(c, 'Set', dnOf(u))) return;
+      if (whatIf(c, 'Set', dnOf(u, c.w))) return;
       for (const g of idList(c.named.MemberOf)) addMember(c.w, g, u.sam);
     },
   },
@@ -471,7 +474,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Removes a user from several groups.', example: 'Remove-ADPrincipalGroupMembership -Identity mokafor -MemberOf grp-sec-ops -Confirm:$false',
     run(c) {
       const u = getUser(c.w, identity(c));
-      if (whatIf(c, 'Set', dnOf(u))) return;
+      if (whatIf(c, 'Set', dnOf(u, c.w))) return;
       for (const g of idList(c.named.MemberOf)) removeMember(c.w, g, u.sam);
     },
   },
@@ -484,7 +487,7 @@ export const CMDLETS: CmdletDef[] = [
     synopsis: 'Sets a group owner (ManagedBy).', example: 'Set-ADGroup -Identity app-carechart -ManagedBy ichandra',
     run(c) {
       const g = getGroup(c.w, identity(c));
-      if (whatIf(c, 'Set', groupDn(g))) return;
+      if (whatIf(c, 'Set', groupDn(g, c.w))) return;
       if (c.named.ManagedBy !== undefined) setGroupOwner(c.w, g.name, c.named.ManagedBy === null ? null : c.str('ManagedBy'));
       if (c.named.Description !== undefined) g.description = c.str('Description');
     },
@@ -536,8 +539,20 @@ export const CMDLETS: CmdletDef[] = [
     name: 'Connect-MgGraph', module: 'Microsoft.Graph', params: ['Scopes', 'TenantId'], switches: ['NoWelcome'],
     synopsis: 'Signs in to Microsoft Graph.', example: 'Connect-MgGraph -Scopes "User.ReadWrite.All","AuditLog.Read.All"',
     run(c) {
+      // -TenantId picks the tenant (an MSP works in many); without it, the shell's own.
+      let tenant = c.shell.w;
+      if (c.named.TenantId !== undefined) {
+        const t = c.str('TenantId').trim();
+        const own = c.shell.w;
+        const isOwn = [own.entra.primaryDomain, own.ad.domain, own.ad.netbios, objectIdFor(own.seed, `tenant:${own.entra.tenantName}`)].some((x) => x.toLowerCase() === t.toLowerCase());
+        const found = isOwn ? own : c.shell.resolveTenant?.(t);
+        if (!found) throw new PsError(`AADSTS90002: Tenant '${t}' not found. Check to make sure you have the correct tenant ID and are signing into the correct cloud. Check with your subscription administrator, this may happen if there are no active subscriptions for the tenant.`, 'AuthenticationError', { exception: 'AuthenticationFailedException', errorId: 'Microsoft.Graph.PowerShell.Authentication.Cmdlets.ConnectMgGraph' });
+        tenant = found;
+      }
+      c.shell.graphWorld = tenant === c.shell.w ? null : tenant;
       c.shell.graphConnected = true;
-      if (!c.has('NoWelcome')) c.shell.host(`Welcome to Microsoft Graph! Connected as ${c.w.player.sam}@meridianhealth.test to tenant ${c.w.company.name}.`, 'green');
+      c.shell.graphScopes = c.named.Scopes === undefined ? ['openid', 'profile', 'User.Read', 'email'] : [...new Set([...idList(c.named.Scopes), 'openid', 'profile', 'email'])];
+      if (!c.has('NoWelcome')) c.shell.host(`Welcome to Microsoft Graph! Connected as ${portalAdminUpn(tenant)} to tenant ${tenant.company.name}.`, 'green');
     },
   },
   {
@@ -563,6 +578,7 @@ export const CMDLETS: CmdletDef[] = [
       requireGraph(c);
       const e = getEntraUser(c.w, identity(c, 'UserId'));
       if (whatIf(c, 'Revoke sessions', e.upn)) return;
+      if (c.w.profileId) { const actor = portalAdminUpn(c.w); asGraph(() => revokeSessionsAs(c.w, actor, e.upn)); return { Value: true }; }
       revokeSessions(c.w, e.upn);
       return { Value: true };
     },
@@ -810,15 +826,24 @@ export const CMDLETS: CmdletDef[] = [
 
 
 CMDLETS.push(...EXTRA_CMDLETS);
+CMDLETS.push(...iamCmdlets({ userObject, groupObject, identity, idList, whatIf, requireGraph, guidOf }));
+
+// Get-Help speaks Microsoft's words: the official synopsis, with Meridian practice as NOTES.
+for (const d of CMDLETS) {
+  const doc = HELP[d.name];
+  if (doc) { d.synopsis = doc.synopsis; d.notes = doc.notes; }
+}
 
 const VERSIONS: Record<CmdletDef['module'], string> = { ActiveDirectory: '1.0.1.0', ADSync: '1.0.0.0', 'Microsoft.Graph': '2.25.0', Core: '3.1.0.0' };
+
+const isProgram = (d: CmdletDef): boolean => !!d.native || GUI_PROGRAMS.has(d.name);
 
 const SECTIONS: [string, (d: CmdletDef) => boolean][] = [
   ['ACTIVE DIRECTORY (module ActiveDirectory)', (d) => d.module === 'ActiveDirectory'],
   ['ENTRA CONNECT (module ADSync, runs on MHS-SYNC01 through Invoke-Command)', (d) => d.module === 'ADSync'],
-  ['ENTRA ID (module Microsoft.Graph; run Connect-MgGraph first)', (d) => d.module === 'Microsoft.Graph'],
-  ['FILES, PIPELINE AND SHELL', (d) => d.module === 'Core' && !d.native],
-  ['WINDOWS PROGRAMS (the same tools as in Command Prompt)', (d) => !!d.native],
+  ['MICROSOFT ENTRA ID (Microsoft Graph PowerShell SDK; run Connect-MgGraph first)', (d) => d.module === 'Microsoft.Graph'],
+  ['POWERSHELL: FILES, PIPELINE AND SESSION', (d) => d.module === 'Core' && !isProgram(d)],
+  ['WINDOWS PROGRAMS', isProgram],
 ];
 
 /** `help` with no topic: every command this workstation has, grouped, one line each. */
@@ -827,17 +852,18 @@ function helpCatalogue(): string[] {
     const short = (d.aliases ?? []).filter((al) => /^[a-z%?]/.test(al) && !al.includes('.')).slice(0, 3);
     return short.length ? `${d.name} (${short.join(', ')})` : d.name;
   };
-  const width = Math.min(44, Math.max(...CMDLETS.map((d) => label(d).length)));
+  const width = Math.min(46, Math.max(...CMDLETS.map((d) => label(d).length)));
+  const fit = (t: string): string => (t.length > 96 ? `${t.slice(0, 93).replace(/\s+\S*$/, '')}...` : t);
   const lines = ['', 'TOPIC', '    Commands on MHS-IAM-WKS01, the Meridian Health IAM Operations workstation.', ''];
   for (const [title, pick] of SECTIONS) {
     const list = CMDLETS.filter(pick).sort((x, y) => x.name.localeCompare(y.name));
     if (!list.length) continue;
     lines.push(title);
-    for (const d of list) lines.push(`    ${label(d).padEnd(width)}  ${d.synopsis}`);
+    for (const d of list) lines.push(`    ${label(d).padEnd(width)}  ${fit(d.synopsis)}`);
     lines.push('');
   }
   lines.push('MORE HELP',
-    `    ${'Get-Help <command>'.padEnd(width)}  Syntax, parameters and an example for one command`,
+    `    ${'Get-Help <command>'.padEnd(width)}  Syntax, parameters, notes and an example for one command`,
     `    ${'Get-Help <command> -Examples'.padEnd(width)}  Only the example`,
     `    ${'Get-Help *user*'.padEnd(width)}  Commands whose name matches`,
     `    ${'Get-Command -Module ActiveDirectory'.padEnd(width)}  Every command in one module`,
@@ -846,22 +872,24 @@ function helpCatalogue(): string[] {
   return lines;
 }
 
-/** Get-Help <name>, in the layout of Windows PowerShell's help. */
+/** Get-Help <name>, in the layout of Windows PowerShell's help, with the real parameter types. */
 function helpFor(d: CmdletDef, examplesOnly: boolean): string[] {
   const example = d.example ? ['EXAMPLE', `    PS C:\\> ${d.example}`, ''] : [];
   if (examplesOnly) return ['', 'NAME', `    ${d.name}`, '', 'SYNOPSIS', `    ${d.synopsis}`, '', ...(example.length ? example : ['EXAMPLE', '    (No example for this command.)', ''])];
   const positional = d.positional ?? [];
-  const syntax = d.native
+  const t = (p: string): string => paramType(d.name, p);
+  const syntax = isProgram(d)
     ? `${d.name} [arguments]`
-    : [d.name, ...(d.params ?? []).map((p) => positional.includes(p) ? `[[-${p}] <Object>]` : `[-${p} <Object>]`), ...(d.switches ?? []).map((sw) => `[-${sw}]`), '[<CommonParameters>]'].join(' ');
-  const params = d.native ? ['    Arguments are passed to the program as typed, as in Command Prompt.', '']
-    : [...(d.params ?? []).flatMap((p) => [`    -${p} <Object>`, `        Position?                    ${positional.includes(p) ? positional.indexOf(p) : 'named'}`, `        Accept pipeline input?       ${d.pipeParam === p ? 'True (ByValue)' : 'False'}`, '']),
+    : [d.name, ...(d.params ?? []).map((p) => positional.includes(p) ? `[[-${p}] <${t(p)}>]` : `[-${p} <${t(p)}>]`), ...(d.switches ?? []).map((sw) => `[-${sw}]`), '[<CommonParameters>]'].join(' ');
+  const params = isProgram(d) ? ['    Arguments are passed to the program as typed, as in Command Prompt.', '']
+    : [...(d.params ?? []).flatMap((p) => [`    -${p} <${t(p)}>`, `        Position?                    ${positional.includes(p) ? positional.indexOf(p) : 'named'}`, `        Accept pipeline input?       ${d.pipeParam === p ? 'True (ByValue)' : 'False'}`, '']),
       ...(d.switches ?? []).flatMap((sw) => [`    -${sw} [<SwitchParameter>]`, '']),
-      '    <CommonParameters>', '        -Verbose, -ErrorAction, -WhatIf, -Confirm and the other common parameters.', ''];
+      '    <CommonParameters>', '        This cmdlet supports the common parameters: Verbose, Debug, ErrorAction, ErrorVariable, WarningAction,', '        WarningVariable, OutBuffer, PipelineVariable, and OutVariable.', ''];
   return [
     '', 'NAME', `    ${d.name}`, '', 'SYNOPSIS', `    ${d.synopsis}`, '', 'SYNTAX', `    ${syntax}`, '',
     'PARAMETERS', ...params,
     ...(d.aliases?.length ? ['ALIASES', `    ${d.aliases.join(', ')}`, ''] : []),
+    ...(d.notes ? ['NOTES', `    Meridian practice: ${d.notes}`, ''] : []),
     ...example,
     'REMARKS', `    To see the examples, type: "get-help ${d.name} -examples".`, '',
   ];

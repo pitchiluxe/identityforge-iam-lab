@@ -599,7 +599,7 @@ export function renderActiveDirectoryWindow(body: HTMLElement, conductor: VmServ
   }
 
   // ── Console tree ─────────────────────────────────────────────────────────
-  const rootLabel = `Active Directory Users and Computers [${DC_FQDN}]`;
+  const rootLabel = (): string => `Active Directory Users and Computers [${DC_FQDN}]`;
 
   function renderTree(): void {
     const scroll = tree.scrollTop;
@@ -663,7 +663,7 @@ export function renderActiveDirectoryWindow(body: HTMLElement, conductor: VmServ
       tree.appendChild(row);
       if (expanded.has(key)) for (const c of kids) draw(c.nodeKey ?? c.key, c.name, c.icon, depth + 1);
     };
-    draw('root', rootLabel, 'root', 0);
+    draw('root', rootLabel(), 'root', 0);
     tree.scrollTop = scroll;
     const selRow = tree.querySelector<HTMLElement>('.ad-trow.sel');
     if (selRow) {
@@ -692,7 +692,7 @@ export function renderActiveDirectoryWindow(body: HTMLElement, conductor: VmServ
     rows = sortRows(childrenOf(selectedNode, conductor.dir, view()));
     for (const k of [...selectedKeys]) if (!rows.some((r) => r.key === k)) selectedKeys.delete(k);
     const o = objectByKey(selectedNode, conductor.dir);
-    descBar.textContent = o ? (o.kind === 'root' ? rootLabel : o.kind === 'domain' ? DOMAIN : `${o.name}${o.description ? '    ' + o.description : ''}`) : '';
+    descBar.textContent = o ? (o.kind === 'root' ? rootLabel() : o.kind === 'domain' ? DOMAIN : `${o.name}${o.description ? '    ' + o.description : ''}`) : '';
 
     if (rows.length === 0) {
       list.appendChild(el('div', 'ad-empty', 'There are no items to show in this view.'));
@@ -1118,8 +1118,18 @@ export function renderActiveDirectoryWindow(body: HTMLElement, conductor: VmServ
   }
 
   function changeDomainDialog(): void {
-    const s = select([DOMAIN], DOMAIN, '100%');
-    openDialog({ title: 'Change Domain', width: 400, modal: true, owner, buttons: [{ label: 'OK', primary: true }, { label: 'Cancel', cancel: true }] })
+    const s = select(conductor.domains?.() ?? [DOMAIN], DOMAIN, '100%');
+    openDialog({ title: 'Change Domain', width: 400, modal: true, owner, buttons: [{ label: 'OK', primary: true, onClick: () => {
+      if (s.value === DOMAIN || !conductor.changeDomain) return;
+      try {
+        conductor.changeDomain(s.value);
+        selectedNode = 'domain';
+        expanded.add('domain');
+        refresh();
+      } catch (e) {
+        messageBox(e instanceof Error ? e.message : String(e), { kind: 'error' });
+      }
+    } }, { label: 'Cancel', cancel: true }] })
       .body.append(el('div', undefined, 'Current domain:  ' + DOMAIN), (() => { const r = el('div'); r.style.cssText = 'display:grid;grid-template-columns:60px 1fr;gap:8px;align-items:center;margin-top:10px;'; r.append(el('label', undefined, 'Domain:'), s); return r; })(), (() => { const c = checkbox('Save this domain setting for the current console', false); c.el.style.marginTop = '10px'; return c.el; })());
   }
 

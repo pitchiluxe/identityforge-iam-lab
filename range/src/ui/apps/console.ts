@@ -6,6 +6,7 @@
  */
 import { clear, h } from '../dom.ts';
 import { notify, persist, store, subscribe } from '../store.ts';
+import { tenantLookup, worldByDomain } from '../companies.ts';
 import { CmdShell } from '../../terminal/cmd.ts';
 import { CMDLETS } from '../../terminal/cmdlets.ts';
 import { Shell } from '../../terminal/shell.ts';
@@ -32,6 +33,8 @@ export interface CmdOptions {
 
 export function mountCmd(host: HTMLElement, opts: CmdOptions = {}): ConsoleControl {
   const ps = new Shell(store.world, CMDLETS);
+  ps.resolveServer = worldByDomain;
+  ps.resolveTenant = tenantLookup;
   const sh = opts.shell ?? new CmdShell(store.world, {
     powershell: (cmd, cwd) => {
       ps.setWorld(store.world);

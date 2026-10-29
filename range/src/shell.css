@@ -1188,3 +1188,9 @@ td.heat { background: color-mix(in srgb, #f5c242 calc(var(--heat, 0) * 70%), tra
 :root[data-taskbar='left'] .taskbar { grid-template-columns: auto minmax(0, 1fr) max-content; }
 :root[data-taskbar='left'] .taskbar > .tb-center { grid-column: 1; margin-left: 8px; }
 .tb-center { min-width: 0; overflow: hidden; }
+
+/* Remote Desktop session: the remote machine is the IAM Range workstation (public/remote-pc), under the connection bar. */
+.rdp-session.rdp-session-remote { grid-template-rows: auto 1fr; }
+.rdp-remote { display: block; width: 100%; height: 100%; border: 0; background: #000; }
+.rdp-bar-who { flex: 1; margin: 0 10px; font-size: 12px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rdp-bar-btn.rdp-bar-text { width: auto; padding: 0 10px; font: inherit; font-size: 12px; }

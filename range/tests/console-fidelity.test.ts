@@ -68,7 +68,7 @@ test('help lists every command; Get-Help shows syntax, parameters and an example
   for (const d of CMDLETS) assert.ok(all.includes(d.name), `help lists ${d.name}`);
   assert.match(all, /ACTIVE DIRECTORY[\s\S]*WINDOWS PROGRAMS[\s\S]*MORE HELP/);
   const one = run('Get-Help Get-ADUser');
-  for (const part of ['NAME', 'SYNOPSIS', 'SYNTAX', 'PARAMETERS', '-Identity <Object>', 'EXAMPLE', 'REMARKS']) assert.ok(one.includes(part), part);
+  for (const part of ['NAME', 'SYNOPSIS', 'SYNTAX', 'PARAMETERS', '-Identity <ADUser>', 'EXAMPLE', 'REMARKS']) assert.ok(one.includes(part), part);
   assert.match(run('help *group*'), /Get-ADGroupMember/);
   assert.match(run('Get-Help Get-Nothing'), /HelpNotFound/);
 });

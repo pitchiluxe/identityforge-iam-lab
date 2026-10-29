@@ -8,8 +8,7 @@
 import type { CheckResult, CheckSpec, GradeResult, ScenarioInstance, World } from '../core/types.ts';
 import { nowIso } from '../core/time.ts';
 import { findUser } from '../world/directory.ts';
-import { activeRole, findOktaUser, inSyncScope, oktaHasApp } from '../world/cloud.ts';
-import { GROUPS_OU } from '../world/company.ts';
+import { activeRole, findOktaUser, groupsOuOf, inSyncScope, oktaHasApp } from '../world/cloud.ts';
 import { hasAssignment, simulateSso } from '../world/federation.ts';
 import { ensureIga, identityOf } from '../world/iga.ts';
 import { ensurePam, usageHealth } from '../world/pam.ts';
@@ -30,6 +29,47 @@ function noteText(w: World, ticket: string): string {
 export function evaluate(w: World, spec: CheckSpec): { pass: boolean; detail: string } {
   const ok = (pass: boolean, detail: string): { pass: boolean; detail: string } => ({ pass, detail });
   switch (spec.k) {
+    case 'neverChanged': {
+      const t = spec.target.toLowerCase();
+      const hit = w.audit.find((e) => e.id > spec.afterAudit && spec.actions.includes(e.action) && (e.target.toLowerCase() === t || (e.detail ?? '').toLowerCase().includes(t)));
+      return ok(!hit, hit ? `${hit.action} on ${spec.target} by ${hit.actor} (${hit.time.slice(0, 16).replace('T', ' ')}).` : `No ${spec.actions.join(' / ')} on ${spec.target}.`);
+    }
+    case 'escalatedTo': {
+      const t = w.tickets.find((x) => x.id === spec.ticket);
+      const hit = t?.escalations?.find((x) => x.team === spec.team);
+      return ok(!!hit, hit ? `${spec.ticket} escalated to ${spec.team}.` : `${spec.ticket} was not escalated to ${spec.team}.`);
+    }
+    case 'cloudGroupMember': {
+      const e = w.entra.users.find((x) => x.upn.toLowerCase() === spec.upn.toLowerCase() && !x.deleted);
+      const has = !!e?.groups.includes(spec.group);
+      return ok(has === spec.value, `${spec.upn} is ${has ? '' : 'not '}a member of ${spec.group}.`);
+    }
+    case 'entraLicense': {
+      const e = w.entra.users.find((x) => x.upn.toLowerCase() === spec.upn.toLowerCase() && !x.deleted);
+      const has = !!e?.licenses.includes(spec.sku);
+      return ok(has === spec.value, `${spec.upn} ${has ? 'has' : 'does not have'} ${spec.sku}.`);
+    }
+    case 'azureRole': {
+      const has = !!w.azure?.assignments.some((r) => r.principal.toLowerCase() === spec.principal.toLowerCase() && r.role === spec.role && r.scope === spec.scope);
+      return ok(has === spec.value, `${spec.principal} ${has ? 'holds' : 'does not hold'} ${spec.role} directly on ${spec.scope.split('/').pop()}.`);
+    }
+    case 'tapIssuedSince': {
+      const hit = w.audit.some((e) => e.action === 'Create Temporary Access Pass' && e.target.toLowerCase() === spec.upn.toLowerCase() && since(e.time, spec.since));
+      return ok(hit, hit ? `Temporary Access Pass issued for ${spec.upn}.` : `No Temporary Access Pass issued for ${spec.upn}.`);
+    }
+    case 'entraGuest': {
+      const [local, domain] = spec.email.toLowerCase().split('@');
+      const g = w.entra.users.find((e) => e.userType === 'Guest' && !e.deleted && e.upn.toLowerCase().startsWith(`${local}_${domain}#ext#@`));
+      return ok(!!g === spec.value, g ? `Guest ${g.upn} exists.` : `No guest for ${spec.email}.`);
+    }
+    case 'adOuExists': {
+      const has = w.ad.ous.some((o) => o.toLowerCase() === spec.ou.toLowerCase());
+      return ok(has === spec.value, `OU ${spec.ou} ${has ? 'exists' : 'does not exist'}.`);
+    }
+    case 'signedInOn': {
+      const hit = w.audit.some((e) => e.eventId === 4624 && e.target === spec.sam && (!spec.host || e.origin === spec.host) && e.time >= spec.after);
+      return ok(hit, hit ? `${spec.sam} signed in${spec.host ? ` on ${spec.host}` : ''} after the ticket was opened.` : `No successful sign-in by ${spec.sam}${spec.host ? ` on ${spec.host}` : ''} since the ticket was opened.`);
+    }
     case 'adExists': {
       const u = findUser(w, spec.sam);
       return ok(!!u === spec.value, u ? `${spec.sam} exists in ${u.ou}.` : `${spec.sam} does not exist.`);
@@ -93,10 +133,10 @@ export function evaluate(w: World, spec: CheckSpec): { pass: boolean; detail: st
     case 'entraMatchesAd': {
       const u = findUser(w, spec.sam);
       if (!u) return ok(false, `${spec.sam} not found in AD.`);
-      if (!inSyncScope(u)) return ok(false, `${spec.sam} is in ${u.ou}, which is outside the Entra Connect sync scope.`);
+      if (!inSyncScope(w, u)) return ok(false, `${spec.sam} is in ${u.ou}, which is outside the Entra Connect sync scope.`);
       const e = w.entra.users.find((x) => !x.deleted && x.onPremSam === u.sam);
       if (!e) return ok(false, `No Entra ID object is linked to ${spec.sam}. Has a sync run since the change?`);
-      const adGroups = u.memberOf.filter((g) => w.ad.groups.some((ag) => ag.name === g && ag.ou === GROUPS_OU));
+      const adGroups = u.memberOf.filter((g) => w.ad.groups.some((ag) => ag.name === g && ag.ou === groupsOuOf(w)));
       const enabled = u.enabled && !(u.accountExpires && Date.parse(u.accountExpires) <= Date.parse(nowIso()));
       const diffs: string[] = [];
       if (e.accountEnabled !== enabled) diffs.push(`accountEnabled ${e.accountEnabled} vs AD ${enabled}`);

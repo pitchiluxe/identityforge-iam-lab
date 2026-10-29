@@ -13,7 +13,8 @@
 import type { AdUser, CaPolicy, EntraUser, OktaUser, SaasAccount, SignIn, World } from '../core/types.ts';
 import { nowIso, nowMs } from '../core/time.ts';
 import { audit } from './audit.ts';
-import { GROUPS_OU, SYNC_SCOPE } from './company.ts';
+import { GROUPS_OU } from './company.ts';
+import { profileById } from './profiles.ts';
 
 export class CloudError extends Error {}
 
@@ -28,12 +29,17 @@ export const ENTRA_ROLES = [
   'Application Administrator',
 ] as const;
 
-export function inSyncScope(u: AdUser): boolean {
-  return u.kind !== 'service' && SYNC_SCOPE.some((s) => u.ou === s || u.ou.startsWith(`${s}/`));
+/** The OU whose groups Entra Connect syncs: the company's Groups OU. */
+export function groupsOuOf(w: World): string {
+  return (w.profileId && profileById(w.profileId)?.groupsOu) || GROUPS_OU;
+}
+
+export function inSyncScope(w: World, u: AdUser): boolean {
+  return u.kind !== 'service' && w.entra.syncScope.some((s) => u.ou === s || u.ou.startsWith(`${s}/`));
 }
 
 function syncedGroupsOf(w: World, u: AdUser): string[] {
-  const syncedGroupNames = new Set(w.ad.groups.filter((g) => g.ou === GROUPS_OU).map((g) => g.name));
+  const syncedGroupNames = new Set(w.ad.groups.filter((g) => g.ou === groupsOuOf(w)).map((g) => g.name));
   return u.memberOf.filter((g) => syncedGroupNames.has(g));
 }
 
@@ -59,7 +65,7 @@ export function objectIdFor(seed: number, upn: string): string {
     h1 = Math.imul(h1 ^ ch.charCodeAt(0), 0x01000193) >>> 0;
     h2 = Math.imul(h2 ^ ch.charCodeAt(0), 0x5bd1e995) >>> 0;
   }
-  const hex = (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0') + (h1 ^ h2).toString(16).padStart(8, '0') + Math.imul(h1, 31).toString(16).padStart(8, '0')).replace(/-/g, '');
+  const hex = (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0') + ((h1 ^ h2) >>> 0).toString(16).padStart(8, '0') + (Math.imul(h1, 31) >>> 0).toString(16).padStart(8, '0'));
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
@@ -67,8 +73,35 @@ function newId(w: World, upn: string): string {
   return objectIdFor(w.seed, upn);
 }
 
-function licensesFor(groups: string[]): string[] {
+/** The company's all-staff birthright group carries the Microsoft 365 licence. */
+function licensesFor(w: World, groups: string[]): string[] {
+  const p = w.profileId ? profileById(w.profileId) : undefined;
+  if (p) return p.baseAccess.some((g) => groups.includes(g)) ? ['Microsoft 365 Business Premium'] : [];
   return groups.includes('grp-all-staff') ? ['Microsoft 365 E3'] : [];
+}
+
+/**
+ * MSP companies: workstations follow their user into Entra as hybrid-joined
+ * devices (a machine whose user is out of sync scope stays on-premises only).
+ */
+function syncDevices(w: World, actor: string): void {
+  const devices = (w.entra.devices ??= []);
+  for (const c of w.ad.computers.filter((x) => /-WKS-\d{4}$/.test(x.name))) {
+    const owner = c.primaryUser ? w.ad.users.find((u) => u.sam === c.primaryUser) : undefined;
+    let d = devices.find((x) => x.name === c.name);
+    if (!d) {
+      if (!owner || !inSyncScope(w, owner)) continue;
+      d = { id: objectIdFor(w.seed, `device:${c.name}`), name: c.name, trustType: 'Hybrid Azure AD joined', ownerUpn: owner.upn, accountEnabled: c.enabled, os: c.os, registered: nowIso() };
+      devices.push(d);
+      audit(w, { source: 'Entra ID', action: 'Add device', target: c.name, actor, detail: `Hybrid Azure AD joined; owner ${owner.upn}` });
+      continue;
+    }
+    const next = { ownerUpn: owner?.upn ?? null, accountEnabled: c.enabled, os: c.os };
+    if (d.ownerUpn !== next.ownerUpn || d.accountEnabled !== next.accountEnabled || d.os !== next.os) {
+      Object.assign(d, next);
+      audit(w, { source: 'Entra ID', action: 'Update device', target: c.name, actor, detail: `accountEnabled=${d.accountEnabled}; owner ${d.ownerUpn ?? '(none)'}` });
+    }
+  }
 }
 
 /** Entra Connect delta cycle, then the Entra provisioning cycle for SCIM apps. */
@@ -77,7 +110,7 @@ export function runEntraSync(w: World, actor = 'Microsoft Entra Connect'): { cre
   w.entra.syncErrors = [];
   const seen = new Set<string>();
   for (const u of w.ad.users) {
-    if (!inSyncScope(u)) continue;
+    if (!inSyncScope(w, u)) continue;
     let e = w.entra.users.find((x) => !x.deleted && x.onPremSam === u.sam);
     if (!e) {
       const sameUpn = w.entra.users.find((x) => !x.deleted && x.upn.toLowerCase() === u.upn.toLowerCase());
@@ -107,7 +140,7 @@ export function runEntraSync(w: World, actor = 'Microsoft Entra Connect'): { cre
     seen.add(e.id);
     const cloudOnlyGroups = e.groups.filter((g) => !w.ad.groups.some((ag) => ag.name === g));
     const groups = [...syncedGroupsOf(w, u), ...cloudOnlyGroups].sort();
-    const next = { upn: u.upn, displayName: u.displayName, department: u.department, jobTitle: u.title, accountEnabled: adEffectivelyEnabled(u), groups, licenses: licensesFor(groups) };
+    const next = { upn: u.upn, displayName: u.displayName, department: u.department, jobTitle: u.title, accountEnabled: adEffectivelyEnabled(u), groups, licenses: [...new Set([...licensesFor(w, groups), ...(e.directLicenses ?? [])])] };
     const before = JSON.stringify([e.upn, e.displayName, e.department, e.jobTitle, e.accountEnabled, e.groups, e.licenses]);
     Object.assign(e, next);
     if (JSON.stringify([e.upn, e.displayName, e.department, e.jobTitle, e.accountEnabled, e.groups, e.licenses]) !== before) {
@@ -123,8 +156,9 @@ export function runEntraSync(w: World, actor = 'Microsoft Entra Connect'): { cre
       audit(w, { source: 'Entra ID', action: 'Delete user', target: e.upn, actor, detail: 'Source object deleted or moved out of sync scope. Soft-deleted for 30 days.' });
     }
   }
+  if (w.profileId) syncDevices(w, actor);
   w.entra.lastSync = nowIso();
-  audit(w, { source: 'Sync', action: 'Delta synchronization completed', target: 'meridianhealth.test', actor, detail: `adds=${created} updates=${updated} deletes=${deleted} errors=${w.entra.syncErrors.length}` });
+  audit(w, { source: 'Sync', action: 'Delta synchronization completed', target: w.ad.domain, actor, detail: `adds=${created} updates=${updated} deletes=${deleted} errors=${w.entra.syncErrors.length}` });
   provisionEntraApps(w);
   return { created, updated, deleted, errors: w.entra.syncErrors.length };
 }
@@ -194,6 +228,16 @@ export function setCloudAccountEnabled(w: World, upn: string, enabled: boolean, 
   return e;
 }
 
+/** Department and job title of a cloud-only user (synced users are mastered in AD). */
+export function setCloudUserProps(w: World, upn: string, props: { department?: string; jobTitle?: string }, actor = w.player.adminSam): EntraUser {
+  const e = getEntraUser(w, upn);
+  if (e.source === 'synced') throw new CloudError("This user is synchronized from on-premises Active Directory. Make the change in AD and run a sync cycle; you can't edit this attribute in the cloud.");
+  if (props.department !== undefined) e.department = props.department;
+  if (props.jobTitle !== undefined) e.jobTitle = props.jobTitle;
+  audit(w, { source: 'Entra ID', action: 'Update user', target: e.upn, actor, detail: Object.entries(props).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('; ') });
+  return e;
+}
+
 export function assignRole(w: World, upn: string, role: string, assignment: 'active' | 'eligible', opts: { permanent: boolean; hours?: number; justification: string }, actor = w.player.adminSam): EntraUser {
   const e = getEntraUser(w, upn);
   if (!opts.justification.trim()) throw new CloudError('A justification is required for role assignments.');
@@ -214,8 +258,9 @@ export function removeRole(w: World, upn: string, role: string, actor = w.player
 }
 
 export function activeRole(e: EntraUser, role: string): 'active' | 'eligible' | 'none' {
-  const r = e.roles.find((x) => x.role === role && (!x.expires || Date.parse(x.expires) > nowMs()));
-  return r ? r.assignment : 'none';
+  // A live PIM activation sits next to the eligible entry and wins over it.
+  const live = e.roles.filter((x) => x.role === role && (!x.expires || Date.parse(x.expires) > nowMs()));
+  return live.some((x) => x.assignment === 'active') ? 'active' : live.length ? 'eligible' : 'none';
 }
 
 export function saveCaPolicy(w: World, p: Omit<CaPolicy, 'id' | 'created'> & { id?: string }, actor = w.player.adminSam): CaPolicy {
@@ -275,7 +320,7 @@ export function oktaHasApp(w: World, u: OktaUser, appId: string): boolean {
 export function runOktaImport(w: World, actor = 'Okta AD Agent (MHS-DC01)'): { created: number; updated: number } {
   let created = 0, updated = 0;
   for (const u of w.ad.users) {
-    if (!inSyncScope(u)) continue;
+    if (!inSyncScope(w, u)) continue;
     let o = w.okta.users.find((x) => x.onPremSam === u.sam);
     const groups = syncedGroupsOf(w, u).sort();
     if (!o) {
@@ -300,7 +345,7 @@ export function runOktaImport(w: World, actor = 'Okta AD Agent (MHS-DC01)'): { c
     if (JSON.stringify([o.login, o.displayName, o.status, o.groups]) !== before) updated++;
   }
   w.okta.lastImport = nowIso();
-  audit(w, { source: 'Okta', action: 'system.import.complete', target: 'Active Directory (meridianhealth.test)', actor, detail: `created=${created} updated=${updated}` });
+  audit(w, { source: 'Okta', action: 'system.import.complete', target: `Active Directory (${w.ad.domain})`, actor, detail: `created=${created} updated=${updated}` });
   pushOktaApps(w);
   return { created, updated };
 }

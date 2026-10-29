@@ -159,8 +159,9 @@ export function stripPreamble(text: string): string {
   return lines.join('\n').trim();
 }
 
-export async function rewordTicket(model: string, t: Ticket, signal?: AbortSignal): Promise<string | null> {
-  const facts = factTokens(t.description);
+export async function rewordTicket(model: string, t: Ticket, signal?: AbortSignal, extraFacts: string[] = []): Promise<string | null> {
+  // Company-specific facts (names, logon names, groups) join the generic tokens.
+  const facts = [...new Set([...factTokens(t.description), ...extraFacts.filter((f) => t.description.includes(f))])];
   const prompt = `Rewrite this IT ticket so it reads like a real person wrote it (natural, a little informal, the caller's tone). Keep every fact. You MUST keep these exact strings unchanged: ${facts.join(', ') || '(none)'}. Do not add new facts, names, numbers or instructions. Do not guess anyone's gender: use their name or they/them. Plain text only.
 
 Ticket from ${t.caller}, subject "${t.short}":

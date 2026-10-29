@@ -16,13 +16,14 @@
  * that account, and Sign out writes the logoff event.
  */
 import { clear, h } from '../dom.ts';
+import type { World } from '../../core/types.ts';
 import { act, notify, persist, store } from '../store.ts';
+import { allDomains, companyWorld, peekCompany } from '../companies.ts';
+import { rdpFolders, type RdpFolder } from '../rdpTargets.ts';
 import { appIcon } from '../icons.ts';
 import { type AppDef, type WinHandle } from '../wm.ts';
 import { changeOwnPassword, findUser, signIn, signOutAudit } from '../../world/directory.ts';
 import { audit } from '../../world/audit.ts';
-import { CmdShell } from '../../terminal/cmd.ts';
-import { mountCmd } from './console.ts';
 import { signInPassword, fmtTime } from '../system.ts';
 
 const TEST_HOST = 'MHS-TEST-WKS01';
@@ -44,6 +45,17 @@ export const rdpApp: AppDef = {
     let error = '';
     let session: { user: string; host: string; mode: 'help' | 'verify'; started: string } | null = null;
     let ended = '';
+    // The company Remote Desktop is working in (Meridian or an MSP customer), and the person picked there.
+    let companyId = 'meridian';
+    let machine = '';
+    // Reading a company (the lists) does not open it; the first write does (no scheduler or save before that).
+    const worldOf = (id: string): World => (id === 'meridian' ? store.world : peekCompany(id));
+    const W = (): World => worldOf(companyId);
+    const actIn = (fn: (w: World) => void, success?: string): boolean => act(fn, success, companyId === 'meridian' ? store.world : companyWorld(companyId));
+    /** Where a sign-in is verified: Meridian's test workstation, or the picked person's own computer. */
+    const vMachine = () => (companyId === 'meridian' ? null : W().ad.computers.find((c) => c.name === machine) ?? null);
+    const vHost = (): string => vMachine()?.name ?? TEST_HOST;
+    const vIp = (): string => vMachine()?.ip ?? TEST_IP;
     const root = h('div', { class: 'rdp' });
     host.appendChild(root);
 
@@ -51,35 +63,45 @@ export const rdpApp: AppDef = {
     const field = (label: string, input: HTMLElement): HTMLElement => h('label', { class: 'rdp-field' }, h('span', null, label), input);
 
     function connectScreen(): HTMLElement {
-      const machines = store.world.ad.computers.filter((c) => c.enabled && c.primaryUser).sort((a, b) => a.name.localeCompare(b.name));
-      const pick = h('select', { class: 'input', 'aria-label': 'Computer' }, machines.map((c) => {
-        const u = findUser(store.world, c.primaryUser!);
-        return h('option', { value: c.name, selected: c.name === computer }, `${c.name} (${u?.displayName ?? c.primaryUser})`);
-      }));
-      const typed = h('input', { class: 'input', list: 'rdp-hosts', placeholder: 'Computer name, e.g. MHS-LT-0412', value: computer, 'aria-label': 'Computer' });
+      const folders: RdpFolder[] = rdpFolders(allDomains().map((d) => ({ id: d.id, w: worldOf(d.id) })));
+      const folder = folders.find((f) => f.id === companyId) ?? folders[0]!;
+      if (!folder.people.some((p) => p.machine === machine)) machine = folder.people[0]?.machine ?? '';
+      const label = (p: RdpFolder['people'][number]): string => `${p.displayName} — ${p.machine}${p.state === 'ok' ? '' : ` (${p.state})`}`;
+      const company = h('select', { class: 'input', 'aria-label': 'Company', onChange: (e: Event) => { companyId = (e.target as HTMLSelectElement).value; machine = ''; error = ''; draw(); } },
+        folders.map((f) => h('option', { value: f.id, selected: f.id === folder.id }, `${f.name} (${f.domain})`)));
+      const who = h('select', { class: 'input', 'aria-label': 'User', onChange: (e: Event) => { machine = (e.target as HTMLSelectElement).value; draw(); } },
+        folder.people.map((p) => h('option', { value: p.machine, selected: p.machine === machine }, label(p))));
+      const target = folder.people.find((p) => p.machine === machine);
+      const meridian = companyId === 'meridian';
       return h('div', { class: 'rdp-connect' },
         h('div', { class: 'rdp-brand' }, appIcon('rdp', 40), h('div', null, h('span', null, 'Remote Desktop'), h('strong', null, 'Connection'))),
         h('section', { class: 'rdp-card' },
+          h('h3', null, 'Choose who you are working on'),
+          field('Company:', company),
+          folder.people.length ? field('User:', who) : h('p', { class: 'muted' }, `Nobody at ${folder.name} has a computer yet. Create their account first: every new hire gets a workstation.`),
+          folder.reclaimed.length ? h('p', { class: 'muted' }, `Reclaimed machines (owner deleted): ${folder.reclaimed.join(', ')}`) : null),
+        h('section', { class: 'rdp-card' },
           h('h3', null, 'Help a user: connect to their computer'),
-          h('p', { class: 'muted' }, 'Sign in with your own admin account and work on their desktop. You never need the user\'s password.'),
-          field('Computer:', machines.length ? pick : typed),
-          h('div', { class: 'rdp-actions' }, h('button', { class: 'btn primary', type: 'button', onClick: () => { computer = (machines.length ? pick.value : typed.value).trim().toUpperCase(); error = ''; go('credentials'); } }, 'Connect'))),
+          h('p', { class: 'muted' }, "Sign in with your own admin account and work on their desktop. You never need the user's password."),
+          h('div', { class: 'rdp-actions' }, h('button', { class: 'btn primary', type: 'button', disabled: !target, onClick: () => { computer = target!.machine.toUpperCase(); error = ''; go('credentials'); } }, target ? `Connect to ${target.machine}` : 'Connect'))),
         h('section', { class: 'rdp-card' },
           h('h3', null, 'Verify a sign-in: test an account'),
-          h('p', { class: 'muted' }, `Sign in AS a directory account on ${TEST_HOST} (${TEST_IP}) to prove a reset, unlock or new account works. Real refusals: disabled, locked out, expired, wrong password (counts towards lockout), must change password.`),
-          h('div', { class: 'rdp-actions' }, h('button', { class: 'btn', type: 'button', onClick: () => { computer = TEST_HOST; error = ''; go('signin'); } }, `Connect to ${TEST_HOST}`))));
+          h('p', { class: 'muted' }, meridian
+            ? `Sign in AS a directory account on ${TEST_HOST} (${TEST_IP}) to prove a reset, unlock or new account works. Real refusals: disabled, locked out, expired, wrong password, must change password.`
+            : `Sign in AS ${target?.displayName ?? 'the user'} on their own computer to prove a reset, unlock or new account works. Real refusals: disabled, locked out, expired, wrong password, must change password.`),
+          h('div', { class: 'rdp-actions' }, h('button', { class: 'btn', type: 'button', disabled: !meridian && !target, onClick: () => { computer = vHost(); account = meridian ? '' : target!.sam; error = ''; go('signin'); } }, `Connect to ${vHost()}`))));
     }
 
     /** Windows Security: your own credentials for a user's computer. */
     function credentialsScreen(): HTMLElement {
-      const comp = store.world.ad.computers.find((c) => c.name.toUpperCase() === computer);
+      const comp = W().ad.computers.find((c) => c.name.toUpperCase() === computer);
       const pw = h('input', { class: 'input', type: 'password', placeholder: 'Password', 'aria-label': 'Password' });
       const ok = (): void => {
         if (!comp) { error = `Remote Desktop can't find the computer "${computer}". This might mean that "${computer}" does not belong to the specified network.`; draw(); return; }
         if (!comp.enabled) { error = 'The trust relationship between this workstation and the primary domain failed. (The computer account is disabled in Active Directory.)'; draw(); return; }
         if (pw.value !== signInPassword()) { error = 'The logon attempt failed.'; draw(); return; }
-        act((w) => audit(w, { source: 'AD', eventId: 4624, action: 'An account was successfully logged on', target: w.player.sam, actor: w.player.sam, origin: comp.name, detail: `Logon type: 10 (RemoteInteractive). Help-desk connection to ${comp.primaryUser}'s computer.` }));
-        session = { user: store.world.player.sam, host: comp.name, mode: 'help', started: new Date().toISOString() };
+        actIn((w) => audit(w, { source: 'AD', eventId: 4624, action: 'An account was successfully logged on', target: w.player.sam, actor: w.player.sam, origin: comp.name, detail: `Logon type: 10 (RemoteInteractive). Help-desk connection to ${comp.primaryUser}'s computer.` }));
+        session = { user: W().player.sam, host: comp.name, mode: 'help', started: new Date().toISOString() };
         error = '';
         go('session');
       };
@@ -90,7 +112,7 @@ export const rdpApp: AppDef = {
         h('div', { class: 'rdp-dialog-body' },
           h('h3', null, 'Enter your credentials'),
           h('p', null, `These credentials will be used to connect to ${computer}${comp?.primaryUser ? ` (${comp.primaryUser}'s computer)` : ''}.`),
-          h('input', { class: 'input', value: `${store.world.ad.netbios}\\${store.world.player.sam}`, readOnly: true, 'aria-label': 'User name' }),
+          h('input', { class: 'input', value: `${W().ad.netbios}\\${W().player.sam}`, readOnly: true, 'aria-label': 'User name' }),
           pw,
           error ? h('p', { class: 'rdp-error' }, error) : null,
           h('div', { class: 'rdp-actions' }, h('button', { class: 'btn primary', type: 'button', onClick: ok }, 'OK'), h('button', { class: 'btn', type: 'button', onClick: () => { error = ''; go('connect'); } }, 'Cancel')))));
@@ -100,15 +122,15 @@ export const rdpApp: AppDef = {
     function signInScreen(): HTMLElement {
       const user = h('input', { class: 'lk-input', placeholder: 'User name', value: account, autocomplete: 'off', 'aria-label': 'User name', list: 'rdp-users' });
       const pw = h('input', { class: 'lk-input', type: 'password', placeholder: 'Password', 'aria-label': 'Password' });
-      const list = h('datalist', { id: 'rdp-users' }, store.world.ad.users.filter((u) => u.kind === 'user').map((u) => h('option', { value: u.sam }, u.displayName)));
+      const list = h('datalist', { id: 'rdp-users' }, W().ad.users.filter((u) => u.kind === 'user').map((u) => h('option', { value: u.sam }, u.displayName)));
       const submit = (): void => {
         account = user.value.trim();
         if (!account) { error = 'Type a user name.'; draw(); return; }
         let r: ReturnType<typeof signIn> | null = null;
-        act((w) => { r = signIn(w, account, pw.value, TEST_HOST); });
+        actIn((w) => { r = signIn(w, account, pw.value, vHost()); });
         const res = r as ReturnType<typeof signIn> | null;
         if (!res) return;
-        if (res.ok) { session = { user: res.user.sam, host: TEST_HOST, mode: 'verify', started: new Date().toISOString() }; error = ''; go('session'); return; }
+        if (res.ok) { session = { user: res.user.sam, host: vHost(), mode: 'verify', started: new Date().toISOString() }; error = ''; go('session'); return; }
         if (res.reason === 'must-change') { tempPassword = pw.value; account = res.user!.sam; error = ''; go('change'); return; }
         error = res.message;
         draw();
@@ -116,11 +138,11 @@ export const rdpApp: AppDef = {
       pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
       setTimeout(() => (account ? pw : user).focus(), 30);
       return h('div', { class: 'rdp-remote-login' },
-        h('div', { class: 'rdp-conn' }, `Connecting to ${TEST_IP} (${TEST_HOST})`),
+        h('div', { class: 'rdp-conn' }, `Connecting to ${vIp()} (${vHost()})`),
         h('div', { class: 'lk-glass lk-panel rdp-login' },
           h('div', { class: 'lk-avatar', style: 'width:84px;height:84px;font-size:30px' }, '👤'),
           h('div', { class: 'lk-name' }, 'Other user'),
-          h('div', { class: 'lk-upn' }, `Sign in to: ${store.world.ad.netbios}`),
+          h('div', { class: 'lk-upn' }, `Sign in to: ${W().ad.netbios}`),
           list,
           h('div', { class: 'rdp-login-fields' }, user, pw),
           error ? h('div', { class: 'lk-msg' }, error) : h('div', { class: 'lk-msg' }),
@@ -133,12 +155,12 @@ export const rdpApp: AppDef = {
       const p2 = h('input', { class: 'lk-input', type: 'password', placeholder: 'Confirm password', 'aria-label': 'Confirm password' });
       const submit = (): void => {
         if (p1.value !== p2.value) { error = 'The passwords don\'t match.'; draw(); return; }
-        const okChange = act((w) => { changeOwnPassword(w, account, tempPassword, p1.value, TEST_HOST); });
+        const okChange = actIn((w) => { changeOwnPassword(w, account, tempPassword, p1.value, vHost()); });
         if (!okChange) { error = 'Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirements of the domain.'; draw(); return; }
         let r: ReturnType<typeof signIn> | null = null;
-        act((w) => { r = signIn(w, account, p1.value, TEST_HOST); });
+        actIn((w) => { r = signIn(w, account, p1.value, vHost()); });
         const res = r as ReturnType<typeof signIn> | null;
-        if (res?.ok) { session = { user: res.user.sam, host: TEST_HOST, mode: 'verify', started: new Date().toISOString() }; error = ''; go('session'); }
+        if (res?.ok) { session = { user: res.user.sam, host: vHost(), mode: 'verify', started: new Date().toISOString() }; error = ''; go('session'); }
         else { error = res && !res.ok ? res.message : 'Sign-in failed.'; go('signin'); }
       };
       p2.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
@@ -152,52 +174,37 @@ export const rdpApp: AppDef = {
         h('button', { class: 'rdp-cancel', type: 'button', onClick: () => { error = ''; go('signin'); } }, 'Cancel')));
     }
 
+    /**
+     * The remote machine's screen is the IAM Range workstation (vendored under
+     * public/remote-pc from ../IAM_virtual-machine), with all of its apps. It is
+     * kept across redraws so the remote session does not reload while you work.
+     */
+    let remoteFrame: HTMLIFrameElement | null = null;
+
     function sessionScreen(): HTMLElement {
       const s = session!;
-      const u = findUser(store.world, s.user);
-      const desk = h('div', { class: 'rdp-desk' });
-      const consoleHost = h('div', { class: 'rdp-console' });
-      let consoleOpen = false;
-      const openConsole = (): void => {
-        if (consoleOpen) return;
-        consoleOpen = true;
-        const sh = new CmdShell(store.world, { powershell: () => [{ text: 'PowerShell is restricted by policy on this computer. Use your own workstation.', kind: 'err' }], ask: (p) => window.prompt(p, '') }, undefined, { user: s.user, host: s.host });
-        const box = h('div', { class: 'rdp-cmdwin' }, h('div', { class: 'rdp-cmdbar' }, appIcon('cmd', 16), h('span', null, `Command Prompt (${s.host})`), h('button', { class: 'rdp-x', type: 'button', 'aria-label': 'Close', onClick: () => { box.remove(); consoleOpen = false; } }, '')), consoleHost);
-        desk.appendChild(box);
-        mountCmd(consoleHost, { shell: sh, onExit: () => { box.remove(); consoleOpen = false; } });
-      };
+      const u = findUser(W(), s.user);
       const signOut = (): void => {
-        act((w) => signOutAudit(w, s.user, s.host));
+        actIn((w) => signOutAudit(w, s.user, s.host));
         ended = `${s.mode === 'verify' ? `${s.user} signed out of ${s.host}.` : `You signed out of ${s.host}.`} The session lasted from ${fmtTime(new Date(s.started))} to ${fmtTime(new Date())}.`;
         session = null;
+        remoteFrame = null;
         go('ended');
       };
       const disconnect = (): void => {
         ended = `Your remote session to ${s.host} was disconnected. The user is still signed in there.`;
         session = null;
+        remoteFrame = null;
         go('ended');
       };
-      const icons = h('div', { class: 'rdp-icons' },
-        h('button', { class: 'rdp-icon', type: 'button', onDblclick: openConsole }, appIcon('cmd', 36), h('span', null, 'Command Prompt')),
-        h('button', { class: 'rdp-icon', type: 'button', onDblclick: openConsole }, appIcon('thisPc', 36), h('span', null, 'This PC')));
-      desk.append(icons, h('div', { class: 'rdp-who' }, h('strong', null, u?.displayName ?? s.user), h('span', null, `${store.world.ad.netbios}\\${s.user} on ${s.host}`), h('span', null, s.mode === 'verify' ? 'Sign-in verified by the domain controller' : `Helping ${store.world.ad.computers.find((c) => c.name === s.host)?.primaryUser ?? 'the user'}`)));
-      return h('div', { class: 'rdp-session' },
-        h('div', { class: 'rdp-bar', role: 'toolbar', 'aria-label': 'Connection bar' }, h('span', { class: 'mdl' }, ''), h('strong', null, s.host),
-          h('button', { class: 'rdp-bar-btn', type: 'button', title: 'Disconnect', onClick: disconnect }, '')),
-        desk,
-        h('div', { class: 'rdp-taskbar' },
-          h('button', { class: 'rdp-start', type: 'button', title: 'Start', onClick: (e: MouseEvent) => {
-            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            import('../ctxmenu.ts').then(({ showMenu }) => showMenu(r.left, r.top - 120, [
-              { label: u?.displayName ?? s.user, bold: true, disabled: true },
-              { label: 'Command Prompt', icon: '', onClick: openConsole },
-              '-',
-              { label: 'Sign out', icon: '', onClick: signOut },
-              { label: 'Disconnect', icon: '', onClick: disconnect },
-            ])).catch(() => undefined);
-          } }, appIcon('start', 20)),
-          h('button', { class: 'rdp-tb', type: 'button', title: 'Command Prompt', onClick: openConsole }, appIcon('cmd', 20)),
-          h('span', { class: 'rdp-clock' }, fmtTime(new Date()))));
+      remoteFrame ??= h('iframe', { class: 'rdp-remote', src: `${import.meta.env.BASE_URL}remote-pc/index.html`, title: `${s.host} (Remote Desktop)` });
+      const who = `${W().ad.netbios}\\${s.user} \u00b7 ${s.mode === 'verify' ? 'sign-in verified by the domain controller' : `helping ${W().ad.computers.find((c) => c.name === s.host)?.primaryUser ?? 'the user'}`}`;
+      return h('div', { class: 'rdp-session rdp-session-remote' },
+        h('div', { class: 'rdp-bar', role: 'toolbar', 'aria-label': 'Connection bar' },
+          h('span', { class: 'mdl' }, '\ue8af'), h('strong', null, s.host), h('span', { class: 'rdp-bar-who' }, `${u?.displayName ?? s.user} \u00b7 ${who}`),
+          h('button', { class: 'rdp-bar-btn rdp-bar-text', type: 'button', title: 'Sign out', onClick: signOut }, 'Sign out'),
+          h('button', { class: 'rdp-bar-btn', type: 'button', title: 'Disconnect', onClick: disconnect }, '\ue711')),
+        remoteFrame);
     }
 
     function endedScreen(): HTMLElement {
@@ -214,6 +221,6 @@ export const rdpApp: AppDef = {
     }
     draw();
     // A world change elsewhere must not tear down the live session view.
-    return { redraw: () => { if (screen !== 'session') draw(); }, dispose: () => { if (session) { act((w) => signOutAudit(w, session!.user, session!.host)); persist(); notify(); } } };
+    return { redraw: () => { if (screen !== 'session') draw(); }, dispose: () => { if (session) { actIn((w) => signOutAudit(w, session!.user, session!.host)); persist(); notify(); } } };
   },
 };
