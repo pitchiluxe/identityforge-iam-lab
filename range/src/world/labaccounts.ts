@@ -71,6 +71,32 @@ export function labAccounts(w: World): LabAccountRow[] {
   })).sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
 }
 
+export interface CloudLabAccountRow {
+  name: string;
+  upn: string;
+  password: string | null;
+  note: string;
+  status: string;
+}
+
+/**
+ * Cloud-only accounts that sign in to the lab Azure portal: users created there
+ * (New user, Create account), each with the password set for them, and the MSP
+ * admin, whose password is the workstation sign-in password. Break-glass and
+ * other accounts with no lab password are not listed.
+ */
+export function cloudLabAccounts(w: World): CloudLabAccountRow[] {
+  return w.entra.users.filter((e) => e.source === 'cloud' && !e.deleted && (e.labPassword || e.upn.startsWith('msp-admin@')))
+    .map((e) => ({
+      name: e.displayName,
+      upn: e.upn,
+      password: e.upn.startsWith('msp-admin@') ? null : e.labPassword ?? null,
+      note: e.upn.startsWith('msp-admin@') ? 'Your workstation sign-in password' : e.userType === 'Guest' ? 'Guest' : e.mustChangePassword ? 'Must change at next sign-in' : '',
+      status: e.accountEnabled ? 'Active' : 'Blocked',
+    }))
+    .sort((a, b) => Number(!a.upn.startsWith('msp-admin@')) - Number(!b.upn.startsWith('msp-admin@')) || a.name.localeCompare(b.name));
+}
+
 /**
  * Accounts a lab's backdrop created with a password nobody typed in the range
  * (the service desk "set one") get a known one too, so the learner can test

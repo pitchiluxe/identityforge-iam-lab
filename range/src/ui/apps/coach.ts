@@ -7,7 +7,7 @@ import { fmt } from '../../core/time.ts';
 import { evidenceMarkdown } from '../../core/career.ts';
 import { DEPARTMENTS } from '../../world/company.ts';
 import { deliverMail } from '../../world/itsm.ts';
-import { labAccounts } from '../../world/labaccounts.ts';
+import { cloudLabAccounts, labAccounts } from '../../world/labaccounts.ts';
 import { TEMPLATES, abandonScenario, checkScenario, startScenario, startShift, takeHint, templateById } from '../../scenarios/engine.ts';
 import { type ChatMessage, backdropProblems, chat, coachSystemPrompt, designScenario, gradeInterview, rewordTicket } from '../../ai/ollama.ts';
 import { badge, button, clear, h, markdown, toast } from '../dom.ts';
@@ -264,7 +264,15 @@ export const coachApp: AppDef = {
           h('tbody', null, rows.map((r) => h('tr', null,
             h('td', null, r.name), h('td', null, r.sam), h('td', null, r.department), h('td', null, r.ou),
             h('td', null, r.password ? (reveal ? h('code', null, r.password) : '••••••••••') : h('span', { class: 'muted' }, 'Unknown: reset it')),
-            h('td', null, r.status), h('td', null, r.inEntra ? 'Synced' : 'Not in cloud'))))));
+            h('td', null, r.status), h('td', null, r.inEntra ? 'Synced' : 'Not in cloud'))))),
+        h('h3', null, 'Azure portal: cloud-only accounts'),
+        h('p', { class: 'muted' }, `Sign in at https://portal.azure.range. Employees above sign in there with the same password (user@${companyW.ad.domain}). Accounts created in the portal are listed here.`),
+        h('table', { class: 'grid' },
+          h('thead', null, h('tr', null, ['Name', 'Sign-in name', 'Password', 'Note', 'Status'].map((c) => h('th', null, c)))),
+          h('tbody', null, cloudLabAccounts(companyW).map((r) => h('tr', null,
+            h('td', null, r.name), h('td', null, r.upn),
+            h('td', null, r.password ? (reveal ? h('code', null, r.password) : '••••••••••') : h('span', { class: 'muted' }, r.note || 'Not set')),
+            h('td', null, r.password ? r.note : ''), h('td', null, r.status))))));
     }
 
     function draw(): void {
