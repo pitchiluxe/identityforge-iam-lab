@@ -16,7 +16,7 @@ export interface AppDef {
   id: string;
   title: string;
   icon: AppIcon;
-  mount(host: HTMLElement, win: WinHandle): { redraw?: () => void; dispose?: () => void } | void;
+  mount(host: HTMLElement, win: WinHandle): { redraw?: () => void; dispose?: () => void; beforeClose?: () => boolean } | void;
   width?: number;
   height?: number;
   /** Pinned apps keep a taskbar button while closed. */
@@ -46,6 +46,7 @@ interface Win {
   maximized: boolean;
   redraw?: () => void;
   dispose?: () => void;
+  beforeClose?: () => boolean;
   dirty: boolean;
   unsub: () => void;
   handle: WinHandle;
@@ -145,7 +146,7 @@ export function focusWindow(id: string): void {
 /** End task: the window closes without asking, as Task Manager does. */
 export function closeWindow(id: string): void {
   const w = wins.find((x) => x.id === id);
-  if (w) close(w);
+  if (w) close(w, true);
 }
 
 /** Task view (Win+Tab): every open window as a card; click one to switch, Esc to leave. */
@@ -216,6 +217,7 @@ export function openApp(app: AppDef, arg?: string, single = true): void {
   const r = app.mount(body, handle) ?? {};
   win.redraw = r.redraw;
   win.dispose = r.dispose;
+  win.beforeClose = r.beforeClose;
   win.unsub = subscribe(() => {
     if (!win.redraw) return;
     if (el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement!.tagName)) { win.dirty = true; return; }
@@ -249,7 +251,8 @@ function toggleMax(win: Win): void {
   win.el.classList.toggle('max', win.maximized);
 }
 
-function close(win: Win): void {
+function close(win: Win, force = false): void {
+  if (!force && win.beforeClose && !win.beforeClose()) return;
   win.unsub();
   win.dispose?.();
   win.el.remove();
@@ -261,7 +264,7 @@ function close(win: Win): void {
 }
 
 export function closeAll(): void {
-  for (const w of [...wins]) close(w);
+  for (const w of [...wins]) close(w, true);
 }
 
 /** Minimize every open window to the taskbar (startup apps after sign-in). */

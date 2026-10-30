@@ -95,7 +95,7 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
       const target = c.str(c.named.FilePath !== undefined ? 'FilePath' : 'Path', true);
       if (/^https?:\/\//i.test(target)) return void c.shell.host(`${OPEN}url:${target}`);
       const prog = target.toLowerCase().replace(/\.exe$/, '');
-      if (['notepad', 'powershell', 'powershell_ise', 'explorer', 'msedge', 'chrome', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'ms-settings:', 'windowsdefender:'].includes(prog)) return void c.shell.host(`${OPEN}app:${prog}`);
+      if (['notepad', 'notepad++', 'pdfxedit', 'powershell', 'powershell_ise', 'explorer', 'msedge', 'chrome', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'ms-settings:', 'windowsdefender:'].includes(prog)) return void c.shell.host(`${OPEN}app:${prog}`);
       const path = c.shell.resolvePath(target);
       if (!fileExists(c.w, path)) throw new PsError(`This command cannot be run because "${target}" could not be found.`, 'ObjectNotFound');
       c.shell.host(`${OPEN}file:${path}`);
@@ -114,6 +114,8 @@ export const EXTRA_CMDLETS: CmdletDef[] = [
     },
   },
   { name: 'calc', aliases: ['calc.exe'], module: 'Core', native: true, synopsis: 'Opens Calculator (calc.exe).', run(c) { c.shell.host('\u0000OPEN:app:calc'); } },
+  { name: 'notepad++', aliases: ['notepad++.exe'], module: 'Core', native: true, params: ['Path'], positional: ['Path'], synopsis: 'Opens Notepad++.', run(c) { c.shell.host(`${OPEN}npp:${c.named.Path === undefined ? '' : c.shell.resolvePath(c.str('Path'))}`); } },
+  { name: 'PDFXEdit', aliases: ['PDFXEdit.exe'], module: 'Core', native: true, params: ['Path'], positional: ['Path'], synopsis: 'Opens PDF-XChange Editor.', run(c) { c.shell.host(c.named.Path === undefined ? `${OPEN}app:pdfxedit` : `${OPEN}file:${c.shell.resolvePath(c.str('Path'))}`); } },
   {
     name: 'New-Item', aliases: ['ni'], module: 'Core', params: ['Path', 'Name', 'ItemType', 'Value'], positional: ['Path'],
     synopsis: 'Creates a file.', run(c) {

@@ -1,6 +1,6 @@
 {
   "name": "meridian-iam-range",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "description": "Meridian IAM Range: a simulated Windows workstation for practising healthcare identity and access management.",
   "engines": {
@@ -16,12 +16,14 @@
     "build:icons": "node build-icons.cjs && node build-installer-art.cjs",
     "electron:dev": "npm run build && node node_modules/electron/cli.js electron/main.cjs",
     "build:desktop": "npm run build && npm run build:icons && node node_modules/electron-builder/cli.js --win --publish never",
-    "release": "npm run build:web && npm run build && npm run build:icons && node node_modules/electron-builder/cli.js --win --publish always"
+    "release": "npm run build:web && npm run build && npm run build:icons && node node_modules/electron-builder/cli.js --win --publish always",
+    "test:editors:ui": "node tests/editor-ui.cjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
+    "playwright": "1.63.0",
     "png-to-ico": "^2.1.8",
     "sharp": "^0.33.5",
     "typescript": "6.0.3",

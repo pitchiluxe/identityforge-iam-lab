@@ -70,6 +70,7 @@ const SMALL = {
   docxFile: page('#e8f0fb') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#185abd"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">W</text>',
   xlsxFile: page('#e7f5ec') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#107c41"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">X</text>',
   pptxFile: page('#fbece7') + '<rect x="4" y="7" width="7" height="6" rx=".8" fill="#c43e1c"/><text x="7.5" y="11.9" font-family="Arial" font-weight="700" font-size="5" fill="#fff" text-anchor="middle">P</text>',
+  pdfFile: page('#fdecea') + '<rect x="3.6" y="7" width="8.8" height="5.4" rx=".8" fill="#c8102e"/><text x="8" y="11.2" font-family="Arial" font-weight="700" font-size="4" fill="#fff" text-anchor="middle">PDF</text>',
   mdFile: page() + '<path d="M4.5 12V8l1.6 2 1.6-2v4M10 8v4M8.8 10.8l1.2 1.2 1.2-1.2" stroke="#4b5563" stroke-width=".8" fill="none"/>',
   desktop: '<rect x="1.5" y="2.5" width="13" height="9" rx=".8" fill="#3c8de0" stroke="#1f4f86" stroke-width=".7"/><rect x="5" y="12.5" width="6" height="1.4" fill="#6b7886"/>',
   downloads: '<circle cx="8" cy="8" r="6.5" fill="#1f6fd1"/><path d="M8 4v6M5.5 7.8L8 10.3l2.5-2.5M5 12h6" stroke="#fff" stroke-width="1.4" fill="none"/>',
@@ -133,6 +134,14 @@ const APP = {
   notepad:
     '<rect x="9" y="5" width="30" height="38" rx="2" fill="#fff" stroke="#6f7a86" stroke-width="1.4"/><rect x="9" y="5" width="30" height="7" rx="2" fill="#4aa0e6"/>' +
     '<path d="M14 18h20M14 23h20M14 28h20M14 33h13" stroke="#9aa3ad" stroke-width="2"/>',
+  notepadpp:
+    '<rect x="8" y="6" width="30" height="37" rx="2" fill="#fff" stroke="#6f7a86" stroke-width="1.4"/><path d="M13 14h20M13 19h20M13 24h12" stroke="#9aa3ad" stroke-width="2"/>' +
+    '<path d="M12 3v6M18 3v6M24 3v6M30 3v6" stroke="#6f7a86" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M22 44c-2-6 1-13 8-15 6-2 12 1 13 7 1 4-2 7-5 6-3-1-2-5 1-4" fill="#7cc142" stroke="#3d7d1a" stroke-width="1.6"/><circle cx="34" cy="31.5" r="2.2" fill="#fff" stroke="#3d7d1a"/><circle cx="34.4" cy="31.5" r="1" fill="#1b1b1b"/>' +
+    '<text x="16" y="38" font-family="Arial" font-weight="700" font-size="9" fill="#3d7d1a">++</text>',
+  pdfxchange:
+    '<path d="M9 4h22l9 9v31H9z" fill="#fff" stroke="#8a8a8a" stroke-width="1.4"/><path d="M31 4v9h9" fill="#eee" stroke="#8a8a8a" stroke-width="1.4"/>' +
+    '<path d="M14 18l20 20M34 18L14 38" stroke="#e8511a" stroke-width="7" stroke-linecap="round"/><path d="M14 18l20 20" stroke="#c8102e" stroke-width="7" stroke-linecap="round" opacity=".85"/>',
   coach:
     '<circle cx="24" cy="24" r="18" fill="#fff" stroke="#c62828" stroke-width="3"/><circle cx="24" cy="24" r="11.5" fill="#fff" stroke="#c62828" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#c62828"/>' +
     '<path d="M24 24L40 8M35 7l5 1 1 5" stroke="#37474f" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
@@ -220,5 +229,6 @@ export function fileGlyph(path: string): SmallIcon {
   if (/\.docx$/i.test(path)) return 'docxFile';
   if (/\.xlsx$/i.test(path)) return 'xlsxFile';
   if (/\.pptx$/i.test(path)) return 'pptxFile';
+  if (/\.pdf$/i.test(path)) return 'pdfFile';
   return 'textFile';
 }

@@ -23,6 +23,8 @@ import { iseApp } from './apps/ise.ts';
 import { terminalApp, terminalWindow } from './apps/terminal.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { calculatorApp } from './apps/calculator.ts';
+import { notepadppApp } from './apps/notepadpp.ts';
+import { pdfxchangeApp } from './apps/pdfxchange.ts';
 import { securityApp } from './apps/security.ts';
 import { screenPenApp, toggleScreenPen } from './pen.ts';
 import { wordStartApp } from './apps/word.ts';
@@ -43,7 +45,7 @@ import { type TrayIconId, trayPlacement } from '../core/taskbar.ts';
 
 const ise = iseApp();
 const notepad = notepadApp('');
-const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, calculatorApp, explorerApp, eventViewerApp, notepad, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp, taskManagerApp];
+const APPS: AppDef[] = [coachApp, browserApp, aducApp, terminalApp, powershellApp, ise, rdpApp, calculatorApp, explorerApp, eventViewerApp, notepad, notepadppApp, pdfxchangeApp, controlPanelApp, settingsApp, securityApp, screenPenApp, stickyNotesApp, wordStartApp, excelStartApp, powerpointStartApp, careerApp, taskManagerApp];
 const DEFAULT_PINS = ['explorer', 'browser', 'aduc', 'terminal', 'coach'];
 export const LAB_PASSWORD = 'Meridian!2026';
 
@@ -447,7 +449,7 @@ function runDialog(): void {
   closeMenus();
   document.querySelector('.run-dlg')?.remove();
   const input = h('input', { class: 'mm-input', style: 'flex:1', list: 'run-list', 'aria-label': 'Open' });
-  const list = h('datalist', { id: 'run-list' }, ['wt', 'cmd', 'powershell', 'powershell_ise', 'mstsc', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'ms-settings:', 'main.cpl', 'taskmgr'].map((v) => h('option', { value: v })));
+  const list = h('datalist', { id: 'run-list' }, ['wt', 'cmd', 'powershell', 'powershell_ise', 'mstsc', 'dsa.msc', 'eventvwr.msc', 'control', 'notepad', 'notepad++', 'pdfxedit', 'calc', 'explorer', 'chrome', 'ms-settings:', 'main.cpl', 'taskmgr'].map((v) => h('option', { value: v })));
   const shield = h('div', { class: 'mm-shield run-dlg', style: 'position:fixed;z-index:100000;background:transparent;align-items:flex-end;justify-content:flex-start;padding:0 0 64px 12px' });
   const close = (): void => shield.remove();
   const ok = (): void => {
@@ -457,7 +459,7 @@ function runDialog(): void {
     if (/^main\.cpl$/i.test(v)) return openMouseProperties();
     if (/^https?:\/\//i.test(v)) return openApp(browserApp, v, false);
     if (/^[A-Za-z]:\\/.test(v)) return /\.\w+$/.test(v) ? openFile(v) : openApp(explorerApp, v, false);
-    const known = ['wt', 'cmd', 'cmd.exe', 'mstsc', 'mstsc.exe', 'powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:', 'taskmgr', 'taskmgr.exe'];
+    const known = ['wt', 'cmd', 'cmd.exe', 'mstsc', 'mstsc.exe', 'powershell', 'powershell_ise', 'ise', 'dsa.msc', 'eventvwr', 'eventvwr.msc', 'control', 'notepad', 'explorer', 'chrome', 'msedge', 'ms-settings:', 'taskmgr', 'taskmgr.exe', 'calc', 'calc.exe', 'notepad++', 'notepad++.exe', 'pdfxedit', 'pdfxedit.exe', 'winword', 'excel', 'powerpnt'];
     if (!known.includes(v.toLowerCase())) {
       document.body.appendChild(messageShield(`Windows cannot find '${v}'. Make sure you typed the name correctly, and then try again.`));
       return;

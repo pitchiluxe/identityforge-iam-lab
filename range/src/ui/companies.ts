@@ -13,6 +13,7 @@ import { fmtDate, nowIso } from '../core/time.ts';
 import { MSP_COMPANIES, profileById } from '../world/profiles.ts';
 import { createCompanyWorld } from '../world/mspSeed.ts';
 import { ensureWorkstations } from '../world/workstations.ts';
+import { ensureSamplePdfs } from '../world/docs.ts';
 import { ensurePimDefaults } from '../world/pim.ts';
 import { ensureTenantSecurity } from '../world/tenantSettings.ts';
 import { objectIdFor, runEntraSync, runOktaImport } from '../world/cloud.ts';
@@ -70,7 +71,7 @@ function savedOrSeed(id: string): World {
   try {
     const raw = storage()?.getItem(KEY(id));
     const saved = raw ? (JSON.parse(raw) as World) : null;
-    if (saved && saved.version === WORLD_VERSION && saved.profileId === id) { w = ensurePimDefaults(ensureWorkstations(saved)); ensureTenantSecurity(w); lastSaved.set(id, raw!); stored.set(id, raw!.length); }
+    if (saved && saved.version === WORLD_VERSION && saved.profileId === id) { w = ensureSamplePdfs(ensurePimDefaults(ensureWorkstations(saved))); ensureTenantSecurity(w); lastSaved.set(id, raw!); stored.set(id, raw!.length); }
   } catch { /* unreadable save: start from the seed */ }
   if (!w) { w = createCompanyWorld(p); lastSaved.set(id, JSON.stringify(w)); }
   return w;

@@ -4,6 +4,16 @@ A simulated IAM engineer's workstation at a fictional hospital system, Meridian 
 
 **Everything here is simulated.** No real directory, tenant, patient or account is touched. Label any evidence you export as practice in a simulated environment.
 
+## Windows-style document editors
+
+Both the installed desktop edition and the web workstation include **Notepad++** and **PDF-XChange Editor** in Start. These are independent training replicas, not the original applications.
+
+Notepad++ supports document tabs, syntax highlighting, line numbers, bookmarks, Find/Replace (including regular expressions), encoding tools and session recovery. Right-click a lab file and choose **Edit with Notepad++**, or run `notepad++.exe`.
+
+PDF-XChange Editor opens lab `.pdf` files and provides a ribbon, page thumbnails, text editing, search, comments, highlights, stamps, form fields, page organization and simulated protection/redaction. Run `PDFXEdit.exe` or open a sample document in Documents. Its files use Meridian's simulated PDF document format; arbitrary real PDFs are not supported, and its password feature is a lab exercise rather than PDF encryption.
+
+Editor verification: `npm test` covers the document engines. To run the isolated browser checks, install Chromium with `node node_modules/playwright/cli.js install chromium`, then run `npm run test:editors:ui`. The check verifies script saving, Find, sample PDF rendering, replacement confirmation and the unsaved-window close prompt. It writes a screenshot and results to the project's generated `tmp/` folder.
+
 ## Install (Windows)
 
 Download `Meridian-IAM-Range-Setup-<version>.exe` from [Releases](https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest) and run it. The installer is not code-signed yet, so Windows SmartScreen may stop it: choose **More info**, then **Run anyway**. It installs for your account without administrator rights.

@@ -12,6 +12,7 @@ import { record } from '../core/career.ts';
 import { randomSeed } from '../core/rng.ts';
 import { createWorld, WORLD_VERSION } from '../world/seed.ts';
 import { ensureLabPasswords } from '../world/labaccounts.ts';
+import { ensureSamplePdfs } from '../world/docs.ts';
 import { bindMeridian, exportHrFeeds, materialisedWorlds, persistCompanies, syncDue } from './companies.ts';
 import { toast } from './dom.ts';
 
@@ -31,6 +32,8 @@ export interface Settings {
   eventViewer?: import('./apps/eventviewer.ts').EventViewerState;
   office?: { recent?: string[] };
   notepad?: Partial<import('./apps/tools.ts').NotepadPrefs>;
+  notepadpp?: import('./apps/notepadpp.ts').NppSettings;
+  pdfxchange?: import('./apps/pdfxchange.ts').PdfxSettings;
   /** Seed ids of generated wallpapers, oldest first (see ui/wallpaperGenerator.ts). */
   generatedWallpapers?: string[];
   generatedLockScreens?: string[];
@@ -74,7 +77,7 @@ const listeners = new Set<() => void>();
 
 function loadWorld(): World {
   const w = load<World>(WORLD_KEY);
-  if (w && w.version === WORLD_VERSION) return ensureLabPasswords(w);
+  if (w && w.version === WORLD_VERSION) return ensureSamplePdfs(ensureLabPasswords(w));
   return createWorld(randomSeed());
 }
 

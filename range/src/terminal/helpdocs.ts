@@ -120,6 +120,8 @@ export const HELP: Record<string, HelpDoc> = {
   'cd\\': { synopsis: 'Changes the current location to the root of the current drive.' },
   'mkdir': { synopsis: 'Creates a new directory.' },
   'calc': { synopsis: 'Starts Calculator (calc.exe).' },
+  'notepad++': { synopsis: 'Starts Notepad++ (notepad++.exe), optionally opening a file in a new tab.' },
+  'PDFXEdit': { synopsis: 'Starts PDF-XChange Editor (PDFXEdit.exe), optionally opening a PDF document.' },
   'New-TimeSpan': { synopsis: 'Creates a TimeSpan object.' },
   'Out-Host': { synopsis: 'Sends output to the command line.' },
   'Out-Null': { synopsis: 'Hides the output instead of sending it down the pipeline or displaying it.' },

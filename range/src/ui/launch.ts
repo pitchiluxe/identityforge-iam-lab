@@ -7,6 +7,8 @@ import { notepadApp, powershellWindow, explorerApp, eventViewerApp, setPowerShel
 import { iseApp } from './apps/ise.ts';
 import { batchWindow, terminalApp, terminalWindow } from './apps/terminal.ts';
 import { calculatorApp } from './apps/calculator.ts';
+import { notepadppApp, setNotepadppLaunchers } from './apps/notepadpp.ts';
+import { pdfxchangeApp } from './apps/pdfxchange.ts';
 import { rdpApp } from './apps/rdp.ts';
 import { securityApp } from './apps/security.ts';
 import { markdownApp } from './apps/markdown.ts';
@@ -22,7 +24,7 @@ import { settingsApp } from './apps/settings.ts';
 import { controlPanelApp } from './apps/control.ts';
 import { taskManagerApp } from './apps/taskmgr.ts';
 
-export type OpenMode = 'open' | 'edit' | 'notepad' | 'run';
+export type OpenMode = 'open' | 'edit' | 'notepad' | 'run' | 'notepadpp';
 
 /** Double-click behaviour. .ps1 files run (the lab's choice); Edit opens the ISE. */
 export function openFile(path: string, mode: OpenMode = 'open'): void {
@@ -30,6 +32,7 @@ export function openFile(path: string, mode: OpenMode = 'open'): void {
   const isBatch = /\.(bat|cmd)$/i.test(path);
   // Settings > Apps > Default apps decides what a double-click does.
   const action = mode === 'open' ? (isScript ? sys().ps1Action : isBatch ? sys().batAction : 'open') : mode;
+  if (action === 'notepadpp') return openApp(notepadppApp, path);
   if (isScript && action === 'run') return openApp(powershellWindow(path), undefined, false);
   if (isScript && action === 'edit') return openApp(iseApp(path), path);
   if (isBatch && action === 'run') return openApp(batchWindow(path), undefined, false);
@@ -38,6 +41,7 @@ export function openFile(path: string, mode: OpenMode = 'open'): void {
   if (action === 'open' && /\.docx$/i.test(path)) return openApp(wordApp(path));
   if (action === 'open' && /\.(xlsx|csv)$/i.test(path)) return openApp(excelApp(path));
   if (action === 'open' && /\.pptx$/i.test(path)) return openApp(powerpointApp(path));
+  if (action === 'open' && /\.pdf$/i.test(path)) return openApp(pdfxchangeApp, path);
   openApp(notepadApp(path));
 }
 
@@ -45,6 +49,8 @@ export function openProgram(name: string): void {
   const n = name.toLowerCase();
   if (n === 'notepad') return openApp(notepadApp(''));
   if (n === 'calc' || n === 'calc.exe' || n === 'calculator') return openApp(calculatorApp);
+  if (n === 'notepad++' || n === 'notepad++.exe') return openApp(notepadppApp);
+  if (n === 'pdfxedit' || n === 'pdfxedit.exe' || n === 'pdf-xchange editor') return openApp(pdfxchangeApp);
   if (n === 'wt' || n === 'terminal') return openApp(terminalApp, undefined, false);
   if (n === 'cmd' || n === 'cmd.exe') return openApp(terminalWindow({ profile: 'cmd' }), undefined, false);
   if (n === 'mstsc' || n === 'mstsc.exe') return openApp(rdpApp);
@@ -69,10 +75,12 @@ export function openProgram(name: string): void {
 
 export function installLaunchers(): void {
   setFileOpener((p, mode) => openFile(p, mode));
+  setNotepadppLaunchers({ file: (p, mode) => openFile(p, mode), program: openProgram, explorer: (d) => openApp(explorerApp, d), url: (u) => openApp(browserApp, u, false) });
   setPowerShellOpener((t) => {
     const i = t.indexOf(':');
     const kind = t.slice(0, i), target = t.slice(i + 1);
     if (kind === 'notepad') openApp(notepadApp(target));
+    else if (kind === 'npp') openApp(notepadppApp, target || undefined);
     else if (kind === 'ise') openApp(iseApp(target || undefined), target || undefined);
     else if (kind === 'explorer') openApp(explorerApp, target);
     else if (kind === 'url') openApp(browserApp, target, false);

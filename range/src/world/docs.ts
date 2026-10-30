@@ -7,6 +7,7 @@
  */
 import type { VFile, World } from '../core/types.ts';
 import { nowIso } from '../core/time.ts';
+import { samplePdfs } from './pdfSamples.ts';
 import { BREAK_GLASS, COMPANY, DEPARTMENTS, DISABLED_OU, JOB_ROLES, OUS, SAAS_CATALOG, STAGING_OU, birthright } from './company.ts';
 
 export function homeDir(w: World): string {
@@ -317,8 +318,19 @@ Open the IAM Coach to start a lab or a full shift.
   for (const [name, body] of Object.entries(POLICIES)) add(`${home}\\Documents\\Policies\\${name}`, body);
   for (const [name, fn] of Object.entries(REFERENCE)) add(`${home}\\Documents\\Reference\\${name}`, fn());
   for (const [name, body] of Object.entries(SCRIPTS)) add(`${home}\\Documents\\Scripts\\${name}`, body, false);
+  for (const pdf of samplePdfs(COMPANY.name, COMPANY.domain)) add(`${home}\\${pdf.folder}\\${pdf.name}`, pdf.content, false);
   add(`${home}\\Documents\\Evidence\\README.txt`, 'Save your own notes and evidence here (Notepad > Save As). Everything in this range is simulated; label it that way in your portfolio.\n', false);
   return files;
+}
+
+/** Worlds saved before PDF-XChange Editor was added get its sample PDFs on load. */
+export function ensureSamplePdfs(w: World): World {
+  const home = homeDir(w);
+  for (const pdf of samplePdfs(COMPANY.name, COMPANY.domain)) {
+    const path = `${home}\\${pdf.folder}\\${pdf.name}`;
+    if (!w.files.some((f) => f.path.toLowerCase() === path.toLowerCase())) w.files.push({ path, content: pdf.content, modified: w.created, readOnly: false });
+  }
+  return w;
 }
 
 /** Worlds created before a policy was added get it the first time a lab needs it. */

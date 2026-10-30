@@ -534,6 +534,8 @@ export class CmdShell {
         return;
       }
       case 'notepad': case 'notepad.exe': this.out.push({ text: `\u0000OPEN:notepad:${argv[0] ? this.resolve(argv[0]) : ''}` }); return;
+      case 'notepad++': case 'notepad++.exe': this.out.push({ text: `\u0000OPEN:npp:${argv[0] ? this.resolve(argv[0].replace(/^"|"$/g, '')) : ''}` }); return;
+      case 'pdfxedit': case 'pdfxedit.exe': this.out.push({ text: argv[0] ? `\u0000OPEN:file:${this.resolve(argv[0].replace(/^"|"$/g, ''))}` : '\u0000OPEN:app:pdfxedit' }); return;
       case 'explorer': case 'explorer.exe': this.out.push({ text: `\u0000OPEN:explorer:${this.resolve(argv[0] ?? '.')}` }); return;
       case 'mstsc': case 'mstsc.exe': this.out.push({ text: '\u0000OPEN:app:mstsc' }); return;
       case 'shutdown': this.err('Access is denied.(5)'); return;
@@ -546,7 +548,7 @@ export class CmdShell {
       this.open(file);
       return;
     }
-    if (/^(dsa\.msc|eventvwr(\.msc)?|control|ms-settings:|wt|chrome|msedge|powershell_ise)$/i.test(m[1]!)) { this.out.push({ text: `\u0000OPEN:app:${m[1]!.toLowerCase()}` }); return; }
+    if (/^(dsa\.msc|eventvwr(\.msc)?|control|ms-settings:|wt|chrome|msedge|powershell_ise|notepad\+\+|pdfxedit)$/i.test(m[1]!)) { this.out.push({ text: `\u0000OPEN:app:${m[1]!.toLowerCase()}` }); return; }
     this.err(`'${m[1]}' is not recognized as an internal or external command,\noperable program or batch file.`);
     this.errorlevel = 9009;
   }

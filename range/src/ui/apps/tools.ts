@@ -442,8 +442,8 @@ export function notepadApp(path: string): AppDef {
 
 // ------------------------------------------------------------------- File Explorer
 
-let openFile: (path: string, mode?: 'open' | 'edit' | 'notepad' | 'run') => void = () => {};
-export function setFileOpener(fn: (path: string, mode?: 'open' | 'edit' | 'notepad' | 'run') => void): void {
+let openFile: (path: string, mode?: 'open' | 'edit' | 'notepad' | 'run' | 'notepadpp') => void = () => {};
+export function setFileOpener(fn: (path: string, mode?: 'open' | 'edit' | 'notepad' | 'run' | 'notepadpp') => void): void {
   openFile = fn;
 }
 
@@ -455,6 +455,7 @@ export function fileTypeName(path: string): string {
   if (/\.docx$/i.test(path)) return 'Microsoft Word Document';
   if (/\.xlsx$/i.test(path)) return 'Microsoft Excel Worksheet';
   if (/\.pptx$/i.test(path)) return 'Microsoft PowerPoint Presentation';
+  if (/\.pdf$/i.test(path)) return 'PDF-XChange Editor Document';
   return 'Text Document';
 }
 
@@ -473,8 +474,11 @@ export function fileMenu(path: string, startRename: () => void): MenuEntry[] {
       { label: 'Run as administrator', icon: '\uE83D', onClick: () => openFile(path, 'run') },
       { label: 'Edit', icon: '\uE70F', onClick: () => openFile(path, 'notepad') },
     ] as MenuEntry[] : []),
+    { label: 'Edit with Notepad++', icon: '\uE70F', onClick: () => openFile(path, 'notepadpp') },
     { label: 'Open with', icon: '\uE7AC', submenu: [
       { label: 'Notepad', icon: '\uE70B', onClick: () => openFile(path, 'notepad') },
+      { label: 'Notepad++', icon: '\uE70F', onClick: () => openFile(path, 'notepadpp') },
+      ...(/\.pdf$/i.test(path) ? [{ label: 'PDF-XChange Editor', icon: '\uEA90', onClick: () => openFile(path, 'open') }] : []),
       { label: 'Windows PowerShell ISE', icon: '\uE756', onClick: () => openFile(path, 'edit') },
     ] },
     '-',
