@@ -19,9 +19,11 @@ import { entraGroupPage, entraPage, entraRolePage, entraUserPage } from './azure
 import { appRegPage, entAppPage } from './azure/apps.ts';
 import { cloudShellPanel, toggleCloudShell } from './azure/cloudshell.ts';
 import { createPage, resourceGroupPage, resourceGroupsPage, resourcePage, resourcesPage, servicePage, subscriptionPage, subscriptionsPage } from './azure/arm.ts';
+import { azureHome, homeServicePage, recordResourceView } from './azure/home.ts';
 
 let searchText = '';
 let menuOpen: 'directory' | 'account' | 'notifications' | null = null;
+let navExpanded: boolean | null = null;
 
 const ENTRA_NAV: [string, Route][] = [
   ['Overview', { k: 'entra', page: 'overview' }], ['Users', { k: 'entra', page: 'users' }], ['Groups', { k: 'entra', page: 'groups' }],
@@ -29,23 +31,6 @@ const ENTRA_NAV: [string, Route][] = [
   ['App registrations', { k: 'entra', page: 'apps' }], ['Enterprise applications', { k: 'entra', page: 'enterprise' }], ['Privileged Identity Management', { k: 'entra', page: 'pim' }], ['Authentication methods', { k: 'entra', page: 'authmethods' }], ['Conditional Access', { k: 'entra', page: 'ca' }], ['Identity Protection', { k: 'entra', page: 'idprotection' }], ['Administrative units', { k: 'entra', page: 'adminunits' }], ['External Identities', { k: 'entra', page: 'external' }],
   ['Sign-in logs', { k: 'entra', page: 'signins' }], ['Audit logs', { k: 'entra', page: 'audit' }], ['Microsoft Entra Connect', { k: 'entra', page: 'connect' }],
 ];
-
-function tile(p: Portal, label: string, glyph: string, r: Route): HTMLElement {
-  return h('button', { class: 'az-tile', type: 'button', onClick: () => p.go(r) }, h('span', { class: 'az-tile-ic', 'aria-hidden': 'true' }, glyph), h('span', null, label));
-}
-
-function home(p: Portal): HTMLElement {
-  ensureAzure(p.w);
-  return h('div', { class: 'az-home' },
-    h('h2', null, 'Azure services'),
-    h('div', { class: 'az-tiles' },
-      tile(p, 'Microsoft Entra ID', '\u{1F6E1}', { k: 'entra', page: 'overview' }), tile(p, 'Users', '\u{1F464}', { k: 'entra', page: 'users' }),
-      tile(p, 'Groups', '\u{1F465}', { k: 'entra', page: 'groups' }), tile(p, 'Subscriptions', '\u{1F511}', { k: 'subscriptions' }),
-      tile(p, 'Resource groups', '\u{1F4E6}', { k: 'resourcegroups' }), tile(p, 'All resources', '▦', { k: 'resources' }),
-      tile(p, 'Virtual machines', '\u{1F5A5}', { k: 'resources', type: 'Microsoft.Compute/virtualMachines' }), tile(p, 'More services', '→', { k: 'allservices' })),
-    h('h2', null, 'Navigate'),
-    h('div', { class: 'az-tiles small' }, tile(p, 'Subscriptions', '\u{1F511}', { k: 'subscriptions' }), tile(p, 'Resource groups', '\u{1F4E6}', { k: 'resourcegroups' }), tile(p, 'All resources', '▦', { k: 'resources' })));
-}
 
 function allServices(p: Portal): HTMLElement {
   const group = (title: string, items: [string, Route][]): HTMLElement => h('section', { class: 'az-card' }, h('h3', null, title),
@@ -76,7 +61,7 @@ function crumbs(r: Route, p: Portal): [string, Route | null][] {
 
 function content(p: Portal, r: Route): HTMLElement {
   switch (r.k) {
-    case 'home': return home(p);
+    case 'home': return azureHome(p);
     case 'allservices': return allServices(p);
     case 'entra': return entraPage(p, r.page);
     case 'entraUser': return entraUserPage(p, r.upn, r.tab);
@@ -91,7 +76,7 @@ function content(p: Portal, r: Route): HTMLElement {
     case 'resources': return resourcesPage(p, r.type);
     case 'resource': return resourcePage(p, r.id, r.blade);
     case 'create': return createPage(p, r.type);
-    case 'service': return servicePage(p, r.name);
+    case 'service': return homeServicePage(p, r.name) ?? servicePage(p, r.name);
     default: return h('div', { class: 'az-blade' }, h('h1', null, '404 - Not found'), h('p', null, "The page you're looking for doesn't exist."));
   }
 }
@@ -105,6 +90,8 @@ function topBar(p: Portal): HTMLElement {
   const toggle = (m: typeof menuOpen): void => { menuOpen = menuOpen === m ? null : m; p.ctx.go(p.ctx.path); };
   const mine = p.upn ? p.w.audit.filter((e) => e.actor === p.upn).slice(-5).reverse() : [];
   return h('header', { class: 'az-top' },
+    h('button', { class: 'az-top-btn az-app-launcher', type: 'button', title: 'All services', 'aria-label': 'All services', onClick: () => p.go({ k: 'allservices' }) }, '⠿'),
+    h('button', { class: 'az-top-btn', type: 'button', title: 'Portal menu', 'aria-label': 'Toggle portal menu', onClick: () => { navExpanded = !(navExpanded ?? parseRoute(p.ctx.path).k !== 'home'); p.ctx.go(p.ctx.path); } }, '☰'),
     h('a', { href: '#', class: 'az-brand', onClick: (e: Event) => { e.preventDefault(); p.go({ k: 'home' }); } }, 'Microsoft Azure', h('span', { class: 'az-lab' }, 'lab')),
     h('div', { class: 'az-search-wrap' }, q, searchText.trim().length >= 2 ? h('div', { class: 'az-search-results', role: 'listbox' },
       hits.length ? hits.map((x) => h('a', { href: '#', onClick: (e: Event) => { e.preventDefault(); searchText = ''; p.ctx.go(x.path); } }, h('span', null, x.label), h('small', null, x.kind)))
@@ -145,10 +132,13 @@ export const azurePortal: Site = {
     if (r.k === 'signup') return h('div', { class: 'az' }, signUpPage(p));
     if (!p.upn || r.k === 'signin') return h('div', { class: 'az' }, signInPage(p));
     const trail = crumbs(r, p);
-    return h('div', { class: 'az' },
+    ensureAzure(p.w);
+    recordResourceView(p, r);
+    const showNav = navExpanded ?? r.k !== 'home';
+    return h('div', { class: `az${r.k === 'home' ? ' az-home-page' : ''}${showNav ? '' : ' az-nav-collapsed'}` },
       topBar(p),
       h('div', { class: 'az-body' },
-        leftNav(p, r),
+        showNav ? leftNav(p, r) : null,
         h('main', { class: 'az-main', 'data-keep-scroll': '' },
           trail.length ? h('div', { class: 'az-crumbs' }, trail.map(([label, to]) => h('span', null, to ? h('a', { href: '#', onClick: (e: Event) => { e.preventDefault(); p.go(to); } }, label) : label, ' › '))) : null,
           content(p, r))),

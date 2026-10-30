@@ -7,6 +7,7 @@
  * blocked site data); the range still works, it just will not remember.
  */
 import type { World } from '../core/types.ts';
+import type { HomePreferences } from '../core/azureHome.ts';
 import type { Career } from '../core/career.ts';
 import { record } from '../core/career.ts';
 import { randomSeed } from '../core/rng.ts';
@@ -51,6 +52,7 @@ export interface Settings {
   browser?: import('./apps/browser.ts').BrowserData;
   /** Lab Azure portal: signed-in account per tenant and the directory on screen. */
   azurePortal?: { sessions: Record<string, { upn: string; since: string }>; current: string };
+  azureHome?: Record<string, HomePreferences>;
   model: string | null;
   rewordTickets: boolean;
   autoSync: boolean;

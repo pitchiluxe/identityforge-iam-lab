@@ -1,0 +1,58 @@
+const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+(async () => {
+  const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '0'], { cwd: path.join(__dirname, '..'), windowsHide: true });
+  let browser;
+  let previewUrl;
+  try {
+    await new Promise((resolve, reject) => { server.stdout.on('data', d => { const match = d.toString().match(/http:\/\/127\.0\.0\.1:\d+\//); if (match) { previewUrl = match[0]; resolve(); } }); server.on('error', reject); server.on('exit', c => reject(Error(`Preview exited ${c}`))); setTimeout(() => reject(Error('Preview timeout')), 15000).unref(); });
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1334, height: 760 } });
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await page.goto(previewUrl);
+    await page.evaluate(async () => {
+      const { store } = await import('/src/ui/store.ts');
+      const { portalState } = await import('/src/ui/sites/azure/frame.ts');
+      const { azurePortal } = await import('/src/ui/sites/azure.ts');
+      const { ensureAzure, portalAdminUpn } = await import('/src/world/azure.ts');
+      const { nowIso } = await import('/src/core/time.ts');
+      const { routePath } = await import('/src/ui/sites/azure/routes.ts');
+      const state = portalState(); state.current = store.world.ad.domain;
+      state.sessions[state.current] = { upn: portalAdminUpn(store.world), since: nowIso() };
+      document.body.replaceChildren();
+      const host = document.body.appendChild(document.createElement('div')); host.style.height = '100vh';
+      const ctx = { path: '/', go(path) { ctx.path = path; host.replaceChildren(azurePortal.render(ctx)); }, open(url) { window.testExternalUrl = url; } };
+      window.testAzureHome = ctx;
+      const g = ensureAzure(store.world).resourceGroups[0];
+      ctx.go(routePath({ k: 'resourcegroup', sub: g.subscription, rg: g.name, blade: 'overview' })); ctx.go('/');
+    });
+    await page.getByRole('heading', { name: 'Azure services', exact: true }).waitFor();
+    if (await page.locator('.az-home-services .az-home-shortcut').count() !== 10) throw Error('Expected ten service shortcuts');
+    if (await page.locator('.az-nav').count() !== 0) throw Error('Home menu should start collapsed');
+    const output = path.join(__dirname, '../../tmp'); fs.mkdirSync(output, { recursive: true });
+    await page.screenshot({ path: path.join(output, 'azure-home.png') });
+    await page.getByRole('button', { name: /^Add favorite / }).click();
+    await page.getByRole('tab', { name: 'Favorite', exact: true }).click();
+    if (await page.locator('.az-home-resources tbody tr').count() !== 1) throw Error('Favorite must be saved');
+    await page.getByRole('button', { name: 'Toggle portal menu' }).click();
+    if (await page.locator('.az-nav').count() !== 1) throw Error('Portal menu must open');
+    await page.getByRole('button', { name: 'Toggle portal menu' }).click();
+    await page.getByRole('button', { name: 'Microsoft Entra ID', exact: true }).click();
+    if (await page.evaluate(() => window.testAzureHome.path) !== '/entra') throw Error('Entra shortcut did not navigate');
+    await page.locator('.az-blade-head h1').waitFor();
+    await page.evaluate(() => window.testAzureHome.go('/'));
+    await page.getByRole('button', { name: 'Create a resource', exact: true }).click();
+    await page.getByRole('heading', { name: 'Create a resource', exact: true }).waitFor();
+    await page.locator('.az-create-card').first().click();
+    await page.getByRole('button', { name: 'Review + create' }).waitFor();
+    await page.evaluate(() => window.testAzureHome.go('/'));
+    await page.setViewportSize({ width: 720, height: 900 });
+    await page.screenshot({ path: path.join(output, 'azure-home-mobile.png') });
+    if (await page.evaluate(() => document.querySelector('.az-main').scrollWidth > document.querySelector('.az-main').clientWidth + 2)) throw Error('Home overflows on a narrow window');
+    if (errors.length) throw Error(errors.join('\n'));
+    const result = { services: 10, recentResources: true, favorites: true, menu: true, entraNavigation: true, resourceCreation: true, narrowLayout: true, consoleErrors: errors };
+    fs.writeFileSync(path.join(output, 'azure-home-ui.json'), JSON.stringify(result, null, 2)); console.log(result);
+  } finally { if (browser) await browser.close(); server.kill(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

@@ -1,5 +1,5 @@
 /* Lab Azure portal (ui/sites/azure.ts). Fluent-like, light, like the real portal. */
-.az { --az-blue: #0078d4; --az-bar: #1b1a19; --az-bg: #faf9f8; --az-line: #edebe9; --az-text: #323130; --az-muted: #605e5c;
+.az { --az-blue: #0078d4; --az-bar: #0078d4; --az-bg: #fff; --az-line: #edebe9; --az-text: #161616; --az-muted: #605e5c;
   display: grid; grid-template-rows: auto 1fr auto; height: 100%; background: var(--az-bg); color: var(--az-text); font: 13px/1.45 'Segoe UI', system-ui, sans-serif; position: relative; }
 .az a { color: var(--az-blue); text-decoration: none; }
 .az a:hover { text-decoration: underline; }
@@ -16,7 +16,7 @@
 .az-marker { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #ffb900; color: #1b1a19; white-space: nowrap; }
 .az-top-actions { display: flex; align-items: center; gap: 4px; }
 .az-top-btn { width: 36px; height: 36px; border: 0; background: transparent; color: #fff; cursor: pointer; font-size: 15px; }
-.az-top-btn:hover, .az-account:hover { background: #3b3a39; }
+.az-top-btn:hover, .az-account:hover { background: #0062ad; }
 .az-account { display: grid; text-align: right; border: 0; background: transparent; color: #fff; cursor: pointer; padding: 2px 8px; font: inherit; }
 .az-account small { font-size: 10px; opacity: .8; }
 .az-pop { position: absolute; right: 8px; top: 42px; width: 340px; max-height: 70vh; overflow: auto; background: #fff; color: var(--az-text); border: 1px solid var(--az-line); box-shadow: 0 8px 24px rgba(0,0,0,.2); padding: 12px; z-index: 4; }
@@ -102,3 +102,69 @@
 .az-cloudshell-bar { display: flex; align-items: center; gap: 6px; padding: 2px 8px; background: #1b1a19; font-size: 12px; }
 .az-cloudshell-bar span { flex: 1; opacity: .85; }
 .az-cloudshell-term { min-height: 0; overflow: auto; }
+
+/* Home follows the Azure portal's wide white service/resource/navigation layout. */
+.az-nav-collapsed .az-body { grid-template-columns: minmax(0, 1fr); }
+.az-home-page .az-main { padding: 0 7.8% 18px 12.5%; background: #fff; }
+.az-home { max-width: 1280px; margin: 0 auto; padding-top: 24px; }
+.az-home h2 { font-size: 18px; line-height: 26px; font-weight: 600; margin: 0 0 22px; color: #111; }
+.az-home-section + .az-home-section { margin-top: 44px; }
+.az-home-services { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; }
+.az-home-shortcut { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 9px; padding: 0 4px 8px; min-height: 90px; background: transparent; border: 0; color: #004578; cursor: pointer; font: inherit; line-height: 17px; text-align: center; }
+.az-home-shortcut span { max-width: 100px; }
+.az-home-shortcut:hover, .az-home-navlink:hover, .az-home-tool:hover { background: #f4f8fb; }
+.az-home-shortcut:focus-visible, .az-home-navlink:focus-visible, .az-home-tool:focus-visible { outline: 2px solid #0078d4; outline-offset: 3px; }
+.az-service-icon { width: 34px; height: 34px; flex: 0 0 34px; display: inline-block; vertical-align: middle; }
+.az-home-history h2 { margin-bottom: 15px; }
+.az-home-tabs { display: flex; gap: 22px; margin: 0 8px 12px; }
+.az-home-tabs button { padding: 8px 0 6px; font: inherit; background: transparent; border: 0; color: #161616; cursor: pointer; border-bottom: 2px solid transparent; }
+.az-home-tabs button.on { border-bottom-color: #0078d4; }
+.az .az-home-resources { width: 100%; border-collapse: collapse; font-size: 12px; margin: 0 8px; table-layout: fixed; }
+.az .az-home-resources th { text-align: left; background: #fff; font-weight: 400; padding: 7px 0; border-bottom: 1px solid #d6d6d6; }
+.az .az-home-resources td { padding: 6px 0; border-bottom: 1px solid #d6d6d6; height: 33px; background: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.az-home-resources th:first-child { width: 45%; }
+.az-home-resources th:nth-child(2) { width: 35%; }
+.az-home-resources th:last-child { width: 30px; }
+.az-home-resources td a { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; }
+.az-home-resources .az-service-icon { width: 18px; height: 18px; flex-basis: 18px; }
+.az-favorite { border: 0; background: transparent; color: #0078d4; cursor: pointer; font-size: 17px; padding: 0 4px; }
+.az-home-seeall { display: inline-block; font-size: 12px; margin: 8px 8px 0; }
+.az-home-empty { margin: 12px 8px 0; font-size: 12px; color: #605e5c; }
+.az-home-navigation { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.az-home-navlink { display: flex; align-items: center; gap: 22px; padding: 7px 0; border: 0; background: transparent; font: inherit; color: #161616; cursor: pointer; text-align: left; }
+.az-home-navlink .az-service-icon { width: 30px; height: 30px; flex-basis: 30px; }
+.az-home-tools-section { padding-bottom: 0; }
+.az-home-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px; }
+.az-home-tool { display: flex; align-items: flex-start; gap: 14px; padding: 5px 0; border: 0; background: transparent; font: inherit; color: #161616; text-align: left; cursor: pointer; }
+.az-home-tool-title { display: block; color: #0078d4; font-size: 13px; line-height: 19px; }
+.az-home-tool-text { display: block; line-height: 20px; margin-top: 3px; }
+.az-top { gap: 9px; padding: 0 6px; }
+.az-top .az-top-btn { width: 32px; height: 38px; font-size: 15px; }
+.az-app-launcher { font-size: 24px !important; }
+.az-search-wrap { max-width: 520px; }
+.az-account { max-width: 235px; overflow: hidden; }
+.az-account span, .az-account small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.az-create-card { display: flex; align-items: center; gap: 14px; font: inherit; color: var(--az-text); cursor: pointer; text-align: left; }
+.az-create-card span:last-child { margin-left: auto; color: #0078d4; }
+.az-home .az-home-navlink span { font-size: 12px; }
+@media (min-width: 1101px) {
+  .az-top .az-search-wrap { position: absolute; left: 50%; transform: translateX(-50%); width: min(420px, 34vw); margin: 0; }
+  .az-top .az-marker { margin-left: auto; }
+}
+@media (max-width: 1100px) {
+  .az-home-page .az-main { padding-left: 5%; padding-right: 5%; }
+  .az-home-services { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 18px; }
+  .az-top .az-marker { display: none; }
+}
+@media (max-width: 760px) {
+  .az-home-page .az-main { padding: 0 20px 24px; }
+  .az-home-navigation, .az-home-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
+  .az-home-services { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .az-home-resources th:nth-child(2), .az-home-resources td:nth-child(2) { display: none; }
+  .az-top .az-brand { font-size: 13px; }
+  .az-top .az-lab, .az-top .az-app-launcher, .az-account small { display: none; }
+  .az-account { max-width: 100px; font-size: 10px; }
+  .az-top { gap: 3px; }
+  .az-top-actions { gap: 0; }
+  .az-search { min-width: 60px; }
+}

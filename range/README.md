@@ -16,6 +16,8 @@ Editor verification: `npm test` covers the document engines. To run the isolated
 
 ## Azure portal additions
 
+The Azure home page follows the portal layout: blue header, ten service shortcuts, Recent/Favorite resources, Navigate and Tools. Recent entries record actual resource visits; favorites are saved per tenant without altering the lab world. Create a resource opens the supported service gallery, Dashboard shows the current resource counts/favorites, and the header menu expands or collapses navigation. `npm run test:azure:home` checks these flows and the narrow-window layout.
+
 Azure portal additions: cloud groups have **Properties** (description) and **Owners** controls. App registrations have editable **Owners** and **Authentication** (redirect URIs, one per line). Changes require the appropriate active role or ownership, write audit events, and preserve existing memberships and assignments. AD-synced groups remain read-only in the cloud.
 
 **Sign-in logs** and **Audit logs** support text search, inclusive UTC date ranges, status/service filters and Clear filters. Searches apply to the full history before displaying the newest 200 matches. `npm run test:azure:ui` runs the isolated browser checks (requires the Chromium installation described above).
