@@ -3,7 +3,7 @@
  */
 import { daysFromNow, fmt, isAfter, nowIso } from '../../../core/time.ts';
 import { badge, h, table } from '../../dom.ts';
-import { addApiPermission, addSecret, assignApp, ensureApps, grantAdminConsent, registerApp, removeSecret, setAssignmentRequired } from '../../../world/apps.ts';
+import { addApiPermission, addSecret, assignApp, ensureApps, grantAdminConsent, registerApp, removeSecret, setAssignmentRequired, setAppOwner, setAppRedirectUris } from '../../../world/apps.ts';
 import { blade, cmd, form, info, input, select, type Portal } from './frame.ts';
 
 const GRAPH_PERMS: [string, string][] = [
@@ -39,8 +39,18 @@ export function appRegPage(p: Portal, appId: string): HTMLElement {
   const desc = input({ placeholder: 'Description' });
   const months = select([['6', '6 months'], ['12', '12 months'], ['24', '24 months']], '6');
   const perm = select(GRAPH_PERMS);
+  const owner = input({ 'aria-label': 'Application owner', placeholder: 'User principal name', list: 'az-app-owners' });
+  const redirects = h('textarea', { class: 'input', rows: '5', 'aria-label': 'Redirect URIs', spellcheck: 'false' }, r.redirectUris.join('\n'));
   return blade(r.name, 'App registration', [],
     h('dl', { class: 'kv' }, ...[['Application (client) ID', r.appId], ['Object ID', r.objectId], ['Owners', r.owners.join(', ') || 'No owners'], ['Redirect URIs', r.redirectUris.join(', ') || '—']].flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
+    h('section', { class: 'az-card' }, h('h3', null, 'Owners'),
+      h('datalist', { id: 'az-app-owners' }, p.w.entra.users.filter((u) => !u.deleted).map((u) => h('option', { value: u.upn }, u.displayName))),
+      table(['User principal name', ''], r.owners.map((upn) => [upn, h('button', { class: 'btn slim ghost', type: 'button', 'aria-label': `Remove application owner ${upn}`, onClick: () => p.run((w, a) => setAppOwner(w, a, appId, upn, false), 'Application owner removed') }, 'Remove')])),
+      form(['User', owner]), h('button', { class: 'btn', type: 'button', onClick: () => p.run((w, a) => setAppOwner(w, a, appId, owner.value, true), 'Application owner added') }, 'Add owner'),
+      info('These owners manage the app registration. Enterprise application ownership is managed separately.')),
+    h('section', { class: 'az-card' }, h('h3', null, 'Authentication'), form(['Redirect URIs (one per line)', redirects]),
+      h('button', { class: 'btn primary', type: 'button', onClick: () => p.run((w, a) => setAppRedirectUris(w, a, appId, redirects.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)), 'Redirect URIs saved') }, 'Save redirect URIs'),
+      info('Web redirect URIs use HTTPS; HTTP is allowed for localhost development. URL paths are case-sensitive.')),
     h('section', { class: 'az-card' }, h('h3', null, 'Certificates & secrets'),
       table(['Description', 'Expires', 'Secret ID', ''], r.secrets.map((s) => [s.description, expiry(s.expires), s.id, h('button', { class: 'btn slim ghost', type: 'button', onClick: () => p.run((x, a) => removeSecret(x, a, appId, s.id), 'Secret deleted') }, 'Delete')])),
       h('div', { class: 'row' }, desc, months, h('button', { class: 'btn', type: 'button', onClick: () => p.run((x, a) => { addSecret(x, a, appId, desc.value, Number(months.value) as 6); }, 'Client secret added. Copy the value now: it is shown only once.') }, '+ New client secret')),

@@ -38,6 +38,7 @@ function owns(reg: AppRegistration, upn: string): boolean {
 }
 
 function canManage(w: World, actor: string, reg: AppRegistration): boolean {
+  if (!w.entra.users.some((u) => u.upn.toLowerCase() === actor.toLowerCase() && !u.deleted && u.accountEnabled)) return false;
   const mine = rolesOf(w, actor);
   return mine.includes('Global Administrator') || APP_ADMINS.some((r) => mine.includes(r)) || owns(reg, actor);
 }
@@ -125,6 +126,35 @@ export function grantAdminConsent(w: World, actorUpn: string, appId: string): vo
 export function secretsExpiringWithin(w: World, days: number): { app: string; secret: string; expires: string }[] {
   const limit = daysFromNow(days);
   return ensureApps(w).flatMap((r) => r.secrets.filter((s) => s.expires <= limit).map((s) => ({ app: r.name, secret: s.description, expires: s.expires })));
+}
+
+export function setAppOwner(w: World, actor: string, appId: string, upn: string, add: boolean): void {
+  const r = reg(w, appId);
+  if (!canManage(w, actor, r)) throw new Error(NO_RIGHTS);
+  const e = w.entra.users.find((u) => u.upn.toLowerCase() === upn.trim().toLowerCase() && !u.deleted);
+  if (!e) throw new Error(`User '${upn}' was not found in this directory.`);
+  const exists = owns(r, e.upn);
+  if (exists === add) throw new Error(add ? 'This user is already an owner.' : 'This user is not an owner.');
+  r.owners = add ? [...r.owners, e.upn] : r.owners.filter((o) => o.toLowerCase() !== e.upn.toLowerCase());
+  audit(w, { source: 'Entra ID', action: add ? 'Add owner to application' : 'Remove owner from application', target: r.name, actor, detail: e.upn });
+}
+
+export function setAppRedirectUris(w: World, actor: string, appId: string, uris: string[]): void {
+  const r = reg(w, appId);
+  if (!canManage(w, actor, r)) throw new Error(NO_RIGHTS);
+  const seen = new Set<string>();
+  const validated = uris.map((value) => {
+    const uri = value.trim();
+    if (!/^https?:\/\//i.test(uri) || /[\s\\]/.test(uri)) throw new Error('Invalid redirect URI: use a complete HTTP or HTTPS URL without whitespace or backslashes.');
+    let url: URL;
+    try { url = new URL(uri); } catch { throw new Error(`Invalid redirect URI: '${uri}'.`); }
+    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === 'localhost')) || !url.hostname || url.hash || url.username || url.password || uri.includes('*') || uri.includes('#') || uri.length > 256) throw new Error('Redirect URIs must use HTTPS (HTTP is allowed for localhost), without wildcards, credentials or fragments.');
+    if (seen.has(url.href)) throw new Error('Duplicate redirect URI.');
+    seen.add(url.href);
+    return uri;
+  });
+  r.redirectUris = validated;
+  audit(w, { source: 'Entra ID', action: 'Update application', target: r.name, actor, detail: `Redirect URIs: ${validated.join(', ') || '(none)'}` });
 }
 
 function ent(w: World, id: string): EntraApp {

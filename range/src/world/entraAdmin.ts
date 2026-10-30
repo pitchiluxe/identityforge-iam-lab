@@ -217,6 +217,33 @@ export function setCloudGroupMember(w: World, actorUpn: string, group: string, u
   audit(w, { source: 'Entra ID', action: member ? 'Add member to group' : 'Remove member from group', target: g.name, actor: actorUpn, detail: e.upn });
 }
 
+function managedCloudGroup(w: World, actor: string, name: string): CloudGroup {
+  const e = w.entra.users.find((u) => u.upn.toLowerCase() === actor.toLowerCase() && !u.deleted && u.accountEnabled);
+  const g = (w.entra.cloudGroups ?? []).find((x) => x.name === name);
+  const mine = rolesOf(w, actor);
+  if (!e || !(mine.some((r) => ['Global Administrator', 'Groups Administrator', 'User Administrator'].includes(r)) || g?.owners.some((o) => o.toLowerCase() === actor.toLowerCase()))) throw new Error(NO_RIGHTS);
+  if (syncedGroupNames(w).includes(name)) throw new Error(ON_PREM);
+  if (!g) throw new Error(`Group '${name}' was not found.`);
+  return g;
+}
+
+/** Keep the group's stable name: memberships, licence rules and assignments reference it. */
+export function updateCloudGroup(w: World, actor: string, name: string, changes: { description: string }): void {
+  const g = managedCloudGroup(w, actor, name);
+  g.description = changes.description.trim();
+  audit(w, { source: 'Entra ID', action: 'Update group', target: g.name, actor, detail: `Description: ${g.description}` });
+}
+
+export function setCloudGroupOwner(w: World, actor: string, name: string, upn: string, add: boolean): void {
+  const g = managedCloudGroup(w, actor, name);
+  const e = w.entra.users.find((u) => u.upn.toLowerCase() === upn.trim().toLowerCase() && !u.deleted);
+  if (!e) throw new Error(`User '${upn}' was not found in this directory.`);
+  const exists = g.owners.some((o) => o.toLowerCase() === e.upn.toLowerCase());
+  if (exists === add) throw new Error(add ? 'This user is already an owner.' : 'This user is not an owner.');
+  g.owners = add ? [...g.owners, e.upn] : g.owners.filter((o) => o.toLowerCase() !== e.upn.toLowerCase());
+  audit(w, { source: 'Entra ID', action: add ? 'Add owner to group' : 'Remove owner from group', target: g.name, actor, detail: e.upn });
+}
+
 export function tenantLicenses(w: World): TenantLicense[] {
   if (!w.entra.licenses) {
     const p = w.profileId ? profileById(w.profileId) : undefined;

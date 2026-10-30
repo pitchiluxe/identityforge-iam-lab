@@ -14,6 +14,12 @@ PDF-XChange Editor opens lab `.pdf` files and provides a ribbon, page thumbnails
 
 Editor verification: `npm test` covers the document engines. To run the isolated browser checks, install Chromium with `node node_modules/playwright/cli.js install chromium`, then run `npm run test:editors:ui`. The check verifies script saving, Find, sample PDF rendering, replacement confirmation and the unsaved-window close prompt. It writes a screenshot and results to the project's generated `tmp/` folder.
 
+## Azure portal additions
+
+Azure portal additions: cloud groups have **Properties** (description) and **Owners** controls. App registrations have editable **Owners** and **Authentication** (redirect URIs, one per line). Changes require the appropriate active role or ownership, write audit events, and preserve existing memberships and assignments. AD-synced groups remain read-only in the cloud.
+
+**Sign-in logs** and **Audit logs** support text search, inclusive UTC date ranges, status/service filters and Clear filters. Searches apply to the full history before displaying the newest 200 matches. `npm run test:azure:ui` runs the isolated browser checks (requires the Chromium installation described above).
+
 ## Install (Windows)
 
 Download `Meridian-IAM-Range-Setup-<version>.exe` from [Releases](https://github.com/pitchiluxe/identityforge-iam-lab/releases/latest) and run it. The installer is not code-signed yet, so Windows SmartScreen may stop it: choose **More info**, then **Run anyway**. It installs for your account without administrator rights.

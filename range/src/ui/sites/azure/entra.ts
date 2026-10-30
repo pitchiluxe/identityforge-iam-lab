@@ -7,12 +7,11 @@
 import type { EntraUser } from '../../../core/types.ts';
 import { fmt, nowIso } from '../../../core/time.ts';
 import { badge, h, table } from '../../dom.ts';
-import { eventsFor } from '../../../world/audit.ts';
 import { ENTRA_ROLES, objectIdFor } from '../../../world/cloud.ts';
 import { dcHostOf } from '../../../world/directory.ts';
 import {
   assignDirectoryRole, assignLicense, cloudGroups, createCloudGroup, createCloudUser, deleteCloudUser, inviteGuest, licensesInUse, resetCloudPassword,
-  restoreCloudUser, revokeSessionsAs, rolesOf, setCloudGroupMember, syncedGroupNames, tenantLicenses, updateCloudUser,
+  restoreCloudUser, revokeSessionsAs, rolesOf, setCloudGroupMember, syncedGroupNames, tenantLicenses, updateCloudUser, updateCloudGroup, setCloudGroupOwner,
 } from '../../../world/entraAdmin.ts';
 import { blade, cmd, form, info, input, select, type Portal } from './frame.ts';
 import { appsPage, enterprisePage } from './apps.ts';
@@ -20,6 +19,7 @@ import { activateRole, deactivateRole, pimSettings } from '../../../world/pim.ts
 import { AUTH_METHODS, deleteMethodAs, issueTap, methodPolicy, requireReregisterAs, setMethodPolicy } from '../../../world/authMethods.ts';
 import { caPage } from './ca.ts';
 import { adminUnitsPage, externalPage, idProtectionPage } from './extras.ts';
+import { logsPage } from './logs.ts';
 
 let lastTap: { upn: string; code: string; expires: string } | null = null;
 import type { EntraPage, UserTab } from './routes.ts';
@@ -158,13 +158,10 @@ export function entraPage(p: Portal, page: EntraPage): HTMLElement {
         info('Group-based licences come from the all-staff birthright group. Assign extra products to a user from their Licenses tab (they need a usage location).'));
     }
     case 'signins': {
-      const list = [...w.entra.signIns].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 200);
-      return blade('Sign-in logs', 'Interactive user sign-ins', [], table(['Date', 'User', 'Application', 'Status', 'IP address', 'Location', 'Failure reason'],
-        list.map((s) => [fmt(s.time), s.upn, s.app, s.result === 'Success' ? badge('Success', 'ok') : badge(s.result, 'bad'), s.ip, s.location, s.failureReason || '—'])));
+      return logsPage(p, 'signins');
     }
     case 'audit': {
-      const ev = [...eventsFor(w, 'Entra ID'), ...eventsFor(w, 'Azure')].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 200);
-      return blade('Audit logs', null, [], table(['Date', 'Service', 'Activity', 'Target', 'Initiated by', 'Detail'], ev.map((e) => [fmt(e.time), e.source === 'Azure' ? 'Azure RBAC' : 'Core Directory', e.action, e.target, e.actor, e.detail ?? ''])));
+      return logsPage(p, 'audit');
     }
     case 'connect': {
       const p2 = w.profileId;
@@ -322,8 +319,16 @@ export function entraGroupPage(p: Portal, name: string): HTMLElement {
   if (!cloud && !synced) return blade('Group not found', null, [], h('p', { class: 'empty' }, `No group named ${name}.`));
   const members = active(p).filter((e) => e.groups.includes(name));
   const add = input({ placeholder: 'user@domain', list: 'az-users', 'aria-label': 'User to add' });
+  const description = input({ value: cloud?.description ?? '', 'aria-label': 'Group description' });
+  const owner = input({ placeholder: 'User principal name', list: 'az-group-owners', 'aria-label': 'Group owner' });
   return blade(name, 'Group', [],
     h('dl', { class: 'kv' }, ...[['Group type', cloud?.type ?? 'Security'], ['Source', synced ? 'Windows Server AD' : 'Cloud'], ['Description', cloud?.description || '—'], ['Owners', cloud?.owners.join(', ') || '—'], ['Members', String(members.length)]].flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
+    cloud && !synced ? h('section', { class: 'az-card' }, h('h3', null, 'Properties'), form(['Description', description]),
+      h('button', { class: 'btn primary', type: 'button', onClick: () => p.run((w, a) => updateCloudGroup(w, a, name, { description: description.value }), 'Group properties saved') }, 'Save properties')) : null,
+    cloud && !synced ? h('section', { class: 'az-card' }, h('h3', null, 'Owners'),
+      table(['User principal name', ''], cloud.owners.map((upn) => [upn, h('button', { class: 'btn slim ghost', type: 'button', 'aria-label': `Remove group owner ${upn}`, onClick: () => p.run((w, a) => setCloudGroupOwner(w, a, name, upn, false), 'Group owner removed') }, 'Remove')])),
+      h('datalist', { id: 'az-group-owners' }, active(p).map((u) => h('option', { value: u.upn }, u.displayName))), form(['User', owner]),
+      h('button', { class: 'btn', type: 'button', onClick: () => p.run((w, a) => setCloudGroupOwner(w, a, name, owner.value, true), 'Group owner added') }, 'Add owner')) : null,
     synced ? info('This group is synced from Active Directory. Change its members in AD.') : h('div', { class: 'row' }, add,
       h('datalist', { id: 'az-users' }, active(p).filter((e) => !e.groups.includes(name)).map((e) => h('option', { value: e.upn }, e.displayName))),
       h('button', { class: 'btn', type: 'button', onClick: () => p.run((x, a) => setCloudGroupMember(x, a, name, add.value.trim(), true), 'Member added') }, '+ Add members')),

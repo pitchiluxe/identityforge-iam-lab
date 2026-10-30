@@ -15,7 +15,7 @@ foreach($folder in @('advanced\lifecycle','operational')){
     }
 }
 # IdentityForge Range: source only (no node_modules, no dist).
-$files+=@('range\README.md','range\package.json','range\package-lock.json','range\tsconfig.json','range\vite.config.mjs','range\index.html','range\Start-Range.ps1','range\LICENSE.txt','range\.gitignore','range\build-icons.cjs','range\build-installer-art.cjs','range\electron\main.cjs','range\electron\preload.cjs','range\tests\editor-ui.cjs','range\frame-check.mjs','range\frame-check.d.mts','api\frame-check.mjs','vercel.json','CLAUDE.md')
+$files+=@('range\README.md','range\package.json','range\package-lock.json','range\tsconfig.json','range\vite.config.mjs','range\index.html','range\Start-Range.ps1','range\LICENSE.txt','range\.gitignore','range\build-icons.cjs','range\build-installer-art.cjs','range\electron\main.cjs','range\electron\preload.cjs','range\tests\editor-ui.cjs','range\tests\azure-ui.cjs','range\frame-check.mjs','range\frame-check.d.mts','api\frame-check.mjs','vercel.json','CLAUDE.md')
 foreach($folder in @('range\src','range\tests','MyScripts')){
     foreach($f in Get-ChildItem -LiteralPath (Join-Path $root $folder) -File -Recurse){
         if($f.Extension -in @('.ts','.css','.ps1')){$files+=$f.FullName.Substring($root.Length+1)}
